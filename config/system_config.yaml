@@ -1,0 +1,590 @@
+# RAG System Configuration
+# All configurable settings in one place
+
+# Database Configuration
+database:
+  path: "data/rag_system.db"
+  connection_timeout: 30
+  check_same_thread: false
+  
+  # Table Definitions - Can add/modify tables without changing code
+  tables:
+    documents:
+      columns:
+        - name: id
+          type: INTEGER
+          constraints: PRIMARY KEY AUTOINCREMENT
+        - name: doc_id
+          type: TEXT
+          constraints: UNIQUE NOT NULL
+        - name: source
+          type: TEXT
+          constraints: NOT NULL
+        - name: content
+          type: TEXT
+          constraints: NOT NULL
+        - name: chunk_id
+          type: INTEGER
+        - name: total_chunks
+          type: INTEGER
+        - name: classification
+          type: TEXT
+        - name: min_access_level
+          type: INTEGER
+        - name: created_at
+          type: TIMESTAMP
+        - name: updated_at
+          type: TIMESTAMP
+      indexes:
+        - name: idx_documents_doc_id
+          columns: [doc_id]
+        - name: idx_documents_classification
+          columns: [classification]
+        - name: idx_documents_created_at
+          columns: [created_at]
+    
+    embeddings:
+      columns:
+        - name: id
+          type: INTEGER
+          constraints: PRIMARY KEY AUTOINCREMENT
+        - name: doc_id
+          type: TEXT
+          constraints: NOT NULL
+        - name: embedding
+          type: BLOB
+          constraints: NOT NULL
+        - name: embedding_model
+          type: TEXT
+          constraints: NOT NULL
+        - name: created_at
+          type: TIMESTAMP
+      foreign_keys:
+        - columns: [doc_id]
+          references: documents(doc_id)
+      indexes:
+        - name: idx_embeddings_doc_id
+          columns: [doc_id]
+    
+    metadata:
+      columns:
+        - name: id
+          type: INTEGER
+          constraints: PRIMARY KEY AUTOINCREMENT
+        - name: doc_id
+          type: TEXT
+          constraints: NOT NULL
+        - name: key
+          type: TEXT
+          constraints: NOT NULL
+        - name: value
+          type: TEXT
+        - name: created_at
+          type: TIMESTAMP
+      foreign_keys:
+        - columns: [doc_id]
+          references: documents(doc_id)
+      indexes:
+        - name: idx_metadata_doc_id
+          columns: [doc_id]
+        - name: idx_metadata_key
+          columns: [key]
+    
+    operations_history:
+      columns:
+        - name: id
+          type: INTEGER
+          constraints: PRIMARY KEY AUTOINCREMENT
+        - name: operation_type
+          type: TEXT
+          constraints: NOT NULL
+        - name: agent_name
+          type: TEXT
+          constraints: NOT NULL
+        - name: status
+          type: TEXT
+          constraints: NOT NULL
+        - name: input_data
+          type: TEXT
+        - name: output_data
+          type: TEXT
+        - name: error_message
+          type: TEXT
+        - name: duration_seconds
+          type: REAL
+        - name: user_id
+          type: TEXT
+        - name: created_at
+          type: TIMESTAMP
+      indexes:
+        - name: idx_operations_type
+          columns: [operation_type]
+        - name: idx_operations_agent
+          columns: [agent_name]
+        - name: idx_operations_created_at
+          columns: [created_at]
+    
+    agent_spawns:
+      columns:
+        - name: id
+          type: INTEGER
+          constraints: PRIMARY KEY AUTOINCREMENT
+        - name: parent_agent
+          type: TEXT
+          constraints: NOT NULL
+        - name: child_agent
+          type: TEXT
+          constraints: NOT NULL
+        - name: task_description
+          type: TEXT
+        - name: status
+          type: TEXT
+          constraints: NOT NULL
+        - name: created_at
+          type: TIMESTAMP
+        - name: completed_at
+          type: TIMESTAMP
+      indexes:
+        - name: idx_spawns_parent
+          columns: [parent_agent]
+        - name: idx_spawns_status
+          columns: [status]
+    
+    query_history:
+      columns:
+        - name: id
+          type: INTEGER
+          constraints: PRIMARY KEY AUTOINCREMENT
+        - name: query
+          type: TEXT
+          constraints: NOT NULL
+        - name: user_id
+          type: TEXT
+          constraints: NOT NULL
+        - name: user_role
+          type: TEXT
+        - name: documents_retrieved
+          type: INTEGER
+        - name: answer
+          type: TEXT
+        - name: response_time
+          type: REAL
+        - name: success
+          type: BOOLEAN
+        - name: created_at
+          type: TIMESTAMP
+      indexes:
+        - name: idx_query_user
+          columns: [user_id]
+        - name: idx_query_created_at
+          columns: [created_at]
+    
+    system_metrics:
+      columns:
+        - name: id
+          type: INTEGER
+          constraints: PRIMARY KEY AUTOINCREMENT
+        - name: metric_name
+          type: TEXT
+          constraints: NOT NULL
+        - name: metric_value
+          type: REAL
+          constraints: NOT NULL
+        - name: metric_type
+          type: TEXT
+        - name: created_at
+          type: TIMESTAMP
+      indexes:
+        - name: idx_metrics_name
+          columns: [metric_name]
+        - name: idx_metrics_created_at
+          columns: [created_at]
+    
+    healing_operations:
+      columns:
+        - name: id
+          type: INTEGER
+          constraints: PRIMARY KEY AUTOINCREMENT
+        - name: operation_type
+          type: TEXT
+          constraints: NOT NULL
+        - name: target_doc_ids
+          type: TEXT
+        - name: reason
+          type: TEXT
+        - name: status
+          type: TEXT
+          constraints: NOT NULL
+        - name: results
+          type: TEXT
+        - name: created_at
+          type: TIMESTAMP
+        - name: completed_at
+          type: TIMESTAMP
+      indexes:
+        - name: idx_healing_type
+          columns: [operation_type]
+        - name: idx_healing_status
+          columns: [status]
+    
+    incident_knowledge:
+      columns:
+        - name: id
+          type: INTEGER
+          constraints: PRIMARY KEY AUTOINCREMENT
+        - name: platform
+          type: TEXT
+        - name: incident_description
+          type: TEXT
+        - name: incident_severity
+          type: TEXT
+        - name: resource_type
+          type: TEXT
+        - name: l1_triage
+          type: TEXT
+        - name: l2_triage
+          type: TEXT
+        - name: final_resolution
+          type: TEXT
+        - name: impacted_dollar
+          type: REAL
+        - name: created_at
+          type: TIMESTAMP
+      indexes:
+        - name: idx_incident_platform
+          columns: [platform]
+        - name: idx_incident_severity
+          columns: [incident_severity]
+    
+    agent_memory:
+      columns:
+        - name: id
+          type: INTEGER
+          constraints: PRIMARY KEY AUTOINCREMENT
+        - name: agent_name
+          type: TEXT
+          constraints: NOT NULL
+        - name: memory_key
+          type: TEXT
+          constraints: NOT NULL
+        - name: memory_value
+          type: TEXT
+        - name: memory_type
+          type: TEXT
+        - name: created_at
+          type: TIMESTAMP
+        - name: expires_at
+          type: TIMESTAMP
+      indexes:
+        - name: idx_memory_agent
+          columns: [agent_name]
+        - name: idx_memory_key
+          columns: [memory_key]
+
+# Department Configuration (RBAC)
+departments:
+  engineering:
+    keywords:
+      - deployment
+      - kubernetes
+      - k8s
+      - api
+      - database
+      - server
+      - infrastructure
+      - code
+      - bug
+      - production
+      - staging
+      - docker
+      - ci/cd
+      - microservice
+      - container
+    access_level: 2
+    allowed_roles:
+      - admin
+      - security_admin
+      - executive
+      - senior_manager
+      - engineering_lead
+      - engineer
+      - team_lead
+  
+  security:
+    keywords:
+      - security
+      - breach
+      - unauthorized
+      - vulnerability
+      - attack
+      - firewall
+      - encryption
+      - authentication
+      - threat
+      - malware
+      - exploit
+      - penetration
+      - intrusion
+    access_level: 1
+    allowed_roles:
+      - admin
+      - security_admin
+      - executive
+      - senior_manager
+  
+  finance:
+    keywords:
+      - payment
+      - revenue
+      - dollar
+      - financial
+      - transaction
+      - billing
+      - charge
+      - cost
+      - budget
+      - invoice
+      - refund
+      - accounting
+    access_level: 1
+    allowed_roles:
+      - admin
+      - executive
+      - senior_manager
+  
+  hr:
+    keywords:
+      - employee
+      - onboarding
+      - hiring
+      - payroll
+      - benefits
+      - training
+      - recruitment
+      - termination
+      - performance
+      - review
+      - compensation
+    access_level: 3
+    allowed_roles:
+      - admin
+      - executive
+      - senior_manager
+      - hr_manager
+  
+  compliance:
+    keywords:
+      - gdpr
+      - compliance
+      - regulation
+      - audit
+      - policy
+      - legal
+      - data retention
+      - privacy
+      - hipaa
+      - sox
+    access_level: 1
+    allowed_roles:
+      - admin
+      - executive
+      - senior_manager
+  
+  customer:
+    keywords:
+      - customer
+      - client
+      - portal
+      - dashboard
+      - user
+      - service
+      - support
+      - escalation
+      - ticket
+      - complaint
+    access_level: 4
+    allowed_roles:
+      - admin
+      - executive
+      - senior_manager
+      - manager
+      - team_lead
+      - employee
+
+# Role Configuration
+roles:
+  admin:
+    display_name: "Administrator"
+    description: "Full access to all data"
+    access_level: 1
+  
+  security_admin:
+    display_name: "Security Admin"
+    description: "Access to security & sensitive data"
+    access_level: 1
+  
+  executive:
+    display_name: "Executive"
+    description: "High-level access"
+    access_level: 1
+  
+  senior_manager:
+    display_name: "Senior Manager"
+    description: "Manager + sensitive data"
+    access_level: 2
+  
+  engineering_lead:
+    display_name: "Engineering Lead"
+    description: "Engineering + infrastructure"
+    access_level: 2
+  
+  manager:
+    display_name: "Manager"
+    description: "Team data access"
+    access_level: 3
+  
+  hr_manager:
+    display_name: "HR Manager"
+    description: "HR data access"
+    access_level: 3
+  
+  team_lead:
+    display_name: "Team Lead"
+    description: "Team-level access"
+    access_level: 4
+  
+  engineer:
+    display_name: "Engineer"
+    description: "Technical data access"
+    access_level: 4
+  
+  employee:
+    display_name: "Employee"
+    description: "General access"
+    access_level: 4
+  
+  contractor:
+    display_name: "Contractor"
+    description: "Limited access"
+    access_level: 5
+  
+  intern:
+    display_name: "Intern"
+    description: "Minimal access"
+    access_level: 5
+  
+  public:
+    display_name: "Public"
+    description: "Public data only"
+    access_level: 5
+
+# Retrieval Configuration
+retrieval:
+  default_top_k: 5
+  default_similarity_threshold: 0.3
+  max_top_k: 20
+  min_similarity_threshold: 0.0
+  max_similarity_threshold: 1.0
+  
+  # Faithfulness thresholds
+  faithfulness:
+    high_confidence:
+      min_similarity: 0.8
+      min_sources: 3
+    medium_confidence:
+      min_similarity: 0.6
+      min_sources: 2
+    low_confidence:
+      min_similarity: 0.4
+      min_sources: 1
+  
+  # Query types
+  query_types:
+    - greeting
+    - help_request
+    - specific
+    - cross_departmental
+    - unclear
+  
+  # Greeting keywords
+  greeting_keywords:
+    - hi
+    - hello
+    - hey
+    - greetings
+    - "good morning"
+    - "good afternoon"
+    - "good evening"
+  
+  # Help keywords
+  help_keywords:
+    - help
+    - "how to"
+    - "what is"
+    - explain
+    - guide
+
+# Dashboard Configuration
+dashboard:
+  title: "RAG System Dashboard"
+  page_icon: "🤖"
+  layout: "wide"
+  
+  pages:
+    - name: "Overview"
+      icon: "📊"
+    - name: "Live Chat"
+      icon: "💬"
+    - name: "Ingestion"
+      icon: "📥"
+    - name: "Retrieval"
+      icon: "🔍"
+    - name: "Healing"
+      icon: "🔧"
+    - name: "Agent Spawning"
+      icon: "🚀"
+    - name: "System Metrics"
+      icon: "📈"
+    - name: "RBAC Testing"
+      icon: "🔐"
+  
+  refresh_interval: 5  # seconds
+  max_chat_history: 100
+  export_format: "txt"
+
+# Data Sources Configuration
+data_sources:
+  - type: "text_file"
+    enabled: true
+    extensions: [".txt", ".md"]
+  
+  - type: "incident_knowledge"
+    enabled: true
+    table: "incident_knowledge"
+  
+  - type: "pdf"
+    enabled: false
+    extensions: [".pdf"]
+  
+  - type: "json"
+    enabled: false
+    extensions: [".json"]
+
+# System Settings
+system:
+  log_level: "INFO"
+  enable_debug: false
+  max_workers: 4
+  timeout: 30
+  
+  # Auto-healing settings
+  healing:
+    enabled: true
+    check_interval: 300  # 5 minutes
+    auto_fix: false
+  
+  # Performance settings
+  performance:
+    cache_embeddings: true
+    batch_size: 100
+    max_memory_mb: 1024

@@ -1,0 +1,68 @@
+# LLM Configuration
+# Define multiple LLM providers - system will use the first available or specified provider
+
+llm_providers:
+  openai:
+    type: "openai"
+    api_key_env: "OPENAI_API_KEY"
+    model: "gpt-4"
+    temperature: 0.7
+    max_tokens: 2000
+    enabled: true
+    
+  anthropic:
+    type: "anthropic"
+    api_key_env: "ANTHROPIC_API_KEY"
+    model: "claude-3-sonnet-20240229"
+    temperature: 0.7
+    max_tokens: 2000
+    enabled: false
+    
+  azure_openai:
+    type: "azure_openai"
+    api_key_env: "AZURE_OPENAI_API_KEY"
+    endpoint_env: "AZURE_OPENAI_ENDPOINT"
+    deployment_name: "gpt-4"
+    api_version: "2023-05-15"
+    temperature: 0.7
+    max_tokens: 2000
+    enabled: false
+    
+  ollama:
+    type: "ollama"
+    base_url: "http://localhost:11434"
+    model: "llama2"
+    temperature: 0.7
+    enabled: true
+    
+  huggingface:
+    type: "huggingface"
+    api_key_env: "HUGGINGFACE_API_TOKEN"
+    model: "google/flan-t5-large"
+    temperature: 0.7
+    max_tokens: 512
+    enabled: false
+
+# Default provider to use
+default_provider: "openai"
+
+# Embedding configuration
+embedding_providers:
+  openai:
+    type: "openai"
+    api_key_env: "OPENAI_API_KEY"
+    model: "text-embedding-3-small"
+    enabled: true
+    
+  sentence_transformers:
+    type: "sentence_transformers"
+    model: "all-MiniLM-L6-v2"
+    enabled: false
+    
+  huggingface:
+    type: "huggingface"
+    api_key_env: "HUGGINGFACE_API_TOKEN"
+    model: "sentence-transformers/all-mpnet-base-v2"
+    enabled: false
+
+default_embedding_provider: "openai"

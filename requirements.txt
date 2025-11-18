@@ -1,0 +1,42 @@
+# Core DeepAgents library from LangChain
+deepagents>=0.1.0
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+langchain-anthropic>=0.2.0
+langchain-community>=0.3.0
+
+# Configuration
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+
+# Data processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+PyPDF2>=3.0.0
+pdfplumber>=0.10.0
+python-docx>=1.0.0
+
+# Vector stores
+chromadb>=0.4.0
+
+# Token counting and caching
+tiktoken>=0.5.0
+
+# Graph processing
+networkx>=3.0
+
+# HuggingFace support
+huggingface-hub>=0.20.0
+sentence-transformers>=2.2.2
+transformers>=4.36.0
+
+# Dashboard and monitoring
+streamlit>=1.29.0
+plotly>=5.18.0
+
+# Optional: Additional features
+# tavily-python>=0.5.0  # For web search
+# pinecone-client>=2.2.0
+# qdrant-client>=1.7.0

@@ -1,0 +1,88 @@
+# Role-Based Access Control Configuration
+
+roles:
+  admin:
+    description: "Full system access"
+    permissions:
+      - "read:all"
+      - "write:all"
+      - "delete:all"
+      - "manage:users"
+    access_level: 100
+    
+  engineering_manager:
+    description: "Engineering team manager"
+    permissions:
+      - "read:engineering"
+      - "read:general"
+      - "write:engineering"
+    access_level: 80
+    
+  engineering_employee:
+    description: "Engineering team member"
+    permissions:
+      - "read:engineering"
+      - "read:general"
+    access_level: 50
+    
+  hr_manager:
+    description: "HR manager"
+    permissions:
+      - "read:hr"
+      - "read:general"
+      - "write:hr"
+    access_level: 80
+    
+  hr_employee:
+    description: "HR team member"
+    permissions:
+      - "read:hr"
+      - "read:general"
+    access_level: 50
+    
+  guest:
+    description: "Limited access user"
+    permissions:
+      - "read:general"
+    access_level: 10
+
+# Document classification rules
+document_classifications:
+  - pattern: "hr_policy|human_resources|employee_handbook"
+    classification: "hr"
+    min_access_level: 50
+    
+  - pattern: "engineering|technical|architecture|code"
+    classification: "engineering"
+    min_access_level: 50
+    
+  - pattern: "confidential|secret|private"
+    classification: "confidential"
+    min_access_level: 80
+    
+  - pattern: "public|general|announcement"
+    classification: "general"
+    min_access_level: 10
+
+# User management
+users:
+  user_123:
+    role: "engineering_employee"
+    name: "John Doe"
+    email: "john@example.com"
+    
+  user_456:
+    role: "hr_manager"
+    name: "Jane Smith"
+    email: "jane@example.com"
+    
+  admin_001:
+    role: "admin"
+    name: "Admin User"
+    email: "admin@example.com"
+
+# Access control settings
+access_control:
+  enforce_rbac: true
+  log_access_attempts: true
+  deny_by_default: true

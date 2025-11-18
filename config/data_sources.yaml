@@ -1,0 +1,52 @@
+# Data Source Configuration
+# Support for multiple data source types
+
+data_sources:
+  pdf:
+    enabled: true
+    supported_extensions: [".pdf"]
+    chunk_size: 1000
+    chunk_overlap: 200
+    loader_type: "pypdf"
+    
+  excel:
+    enabled: true
+    supported_extensions: [".xlsx", ".xls", ".csv"]
+    loader_type: "pandas"
+    sheet_name: null  # null = all sheets, or specify sheet name
+    
+  word:
+    enabled: true
+    supported_extensions: [".docx", ".doc"]
+    loader_type: "python-docx"
+    
+  text:
+    enabled: true
+    supported_extensions: [".txt", ".md"]
+    chunk_size: 1000
+    chunk_overlap: 200
+    
+  sqlite:
+    enabled: true
+    connection_string_env: "SQLITE_DB_PATH"
+    query_mode: "table"  # "table" or "query"
+    
+  json:
+    enabled: true
+    supported_extensions: [".json"]
+    flatten_nested: true
+    
+  web:
+    enabled: true
+    user_agent: "DeepAgent-RAG/1.0"
+    timeout: 30
+
+# Storage configuration
+vector_store:
+  type: "chroma"  # Options: chroma, pinecone, qdrant, faiss
+  persist_directory: "./data/vector_store"
+  collection_name: "rag_documents"
+  
+graph_store:
+  type: "networkx"  # Options: networkx, neo4j
+  persist_directory: "./data/graph_store"

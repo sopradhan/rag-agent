@@ -1,0 +1,76 @@
+master_agent:
+  name: MasterOrchestrator
+  memory_backend: persistent
+  max_iterations: 10
+  logging_level: INFO
+ingestion_agent:
+  name: IngestionAgent
+  memory_backend: persistent
+  parallel_processing: true
+  max_workers: 4
+  subagents:
+    chunker:
+      name: ChunkerSubagent
+      memory_backend: in-memory
+      strategy: recursive
+    metadata:
+      name: MetadataSubagent
+      memory_backend: in-memory
+      extract_keywords: true
+      extract_summary: true
+    rbac:
+      name: RBACSubagent
+      memory_backend: in-memory
+      auto_classify: true
+    embedding:
+      name: EmbeddingSubagent
+      memory_backend: in-memory
+      batch_size: 100
+retrieval_agent:
+  name: RetrievalAgent
+  memory_backend: persistent
+  top_k: 10
+  similarity_threshold: 0.75
+  temperature: 0.5
+  context_window: 4000
+  reranker:
+    enabled: true
+    model: cross-encoder
+    top_n: 5
+  subagents:
+    permission_checker:
+      name: PermissionCheckerSubagent
+      memory_backend: in-memory
+      strict_mode: true
+    graph_expansion:
+      name: GraphExpansionSubagent
+      memory_backend: in-memory
+      max_depth: 2
+      max_nodes: 10
+    answer_synthesis:
+      name: AnswerSynthesisSubagent
+      memory_backend: in-memory
+      include_sources: true
+      max_context_length: 4000
+healing_agent:
+  name: HealingAgent
+  memory_backend: persistent
+  run_interval: 24h
+  auto_optimize: true
+  subagents:
+    heatmap_analyzer:
+      name: HeatmapAnalyzerSubagent
+      memory_backend: persistent
+      metrics:
+      - query_frequency
+      - retrieval_accuracy
+      - response_time
+      - user_feedback
+    optimization:
+      name: OptimizationSubagent
+      memory_backend: persistent
+      strategies:
+      - reindex_low_quality
+      - add_synthetic_questions
+      - adjust_chunk_size
+      - update_embeddings
