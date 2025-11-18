@@ -1,0 +1,87 @@
+================================================================================
+AGENTIC RAG v1.0 - QUICK REFERENCE CARD
+================================================================================
+
+STARTUP:
+  $ cd e:\rag_agent
+  $ streamlit run dashboard.py
+  → Open: http://localhost:8501
+
+QUERY EXAMPLE:
+  Page: "Retrieve" 
+  Query: "how to roll back database"
+  Role: "engineer"
+  Button: "Retrieve & Spawn Agents"
+  Result: Answer with 51 documents searched, RBAC filtered
+
+DOCUMENTS:
+  Total: 51 indexed
+  Topics: Engineering, HR, General, Incidents, Security
+  Storage: ChromaDB (semantic) + SQLite (metadata)
+  Searchable: 100%
+
+AGENTS:
+  1. Analyzer: Keywords + Intent
+  2. Searcher: Semantic search
+  3. Filter: RBAC enforcement
+  4. Ranker: Relevance scoring
+  5. Synthesizer: Answer + spawns helpers
+
+AGENT SPAWNING:
+  SynthesizerSubagent spawns:
+    - RefinerSubagent (improve clarity)
+    - ValidatorSubagent (check quality)
+  Status: Parent ← Child bidirectional communication
+
+RBAC ROLES:
+  admin (100): Full access
+  eng_manager (80): Engineering oversight
+  eng_employee (50): Engineering team
+  hr_manager (80): HR oversight
+  hr_employee (50): HR team
+  guest (10): General only
+
+PERFORMANCE:
+  Query: ~2 seconds
+  Documents indexed: 51/51
+  Pipeline: analyzer → searcher → filter → ranker → synthesizer
+
+TESTS:
+  test_agentic_architecture.py: ✓ PASSING
+  test_query_debug.py: ✓ PASSING
+  index_to_chromadb.py: ✓ PASSING (51 docs)
+
+GIT STATUS:
+  Commits: 3
+  Files: 52 tracked
+  Status: Production frozen
+
+KEY FILES:
+  dashboard.py: Main UI
+  agentic_orchestrator.py: Master orchestrator
+  langchain_subagents.py: 5-agent pipeline (687 lines)
+  vector_store.py: ChromaDB integration
+  config/rbac_config.yaml: RBAC rules
+
+DOCUMENTATION:
+  - PRODUCTION_FREEZE_v1.0.txt (395 lines)
+  - SYSTEM_SNAPSHOT_COMPLETE.txt (597 lines)
+  - AGENTIC_RAG_SUMMARY.txt (400 lines)
+  - AGENTIC_RAG_REFERENCE.txt (500 lines)
+
+FEATURES:
+  ✓ Autonomous agent spawning
+  ✓ Chain-of-thought reasoning (5 iterations)
+  ✓ Semantic search (51 documents)
+  ✓ RBAC enforcement
+  ✓ Real-time dashboard
+  ✓ Full execution transparency
+
+STATUS: ✓ PRODUCTION READY
+
+For details, see:
+  - SYSTEM_SNAPSHOT_COMPLETE.txt (comprehensive guide)
+  - PRODUCTION_FREEZE_v1.0.txt (freeze documentation)
+  - Code comments (inline documentation)
+
+================================================================================
