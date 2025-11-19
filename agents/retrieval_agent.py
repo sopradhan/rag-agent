@@ -57,46 +57,46 @@ class RetrievalAgent:
         vectordb_service = self.services['vectordb']
         top_k = self.top_k
         
-        # Create wrapper functions that convert dict args to proper function calls
-        def _permission_check(**kwargs):
-            user_id = kwargs.get('user_id', '')
-            chunk_ids = kwargs.get('chunk_ids', [])
+        # Get the underlying functions from @tool decorated objects
+        # This allows us to call them directly without the StructuredTool wrapper
+        perm_check_func = permission_check_tool.func if hasattr(permission_check_tool, 'func') else permission_check_tool
+        vector_search_func = vector_search_tool.func if hasattr(vector_search_tool, 'func') else vector_search_tool
+        rerank_func = rerank_results_tool.func if hasattr(rerank_results_tool, 'func') else rerank_results_tool
+        synthesize_func = synthesize_answer_tool.func if hasattr(synthesize_answer_tool, 'func') else synthesize_answer_tool
+        expand_func = graph_expand_tool.func if hasattr(graph_expand_tool, 'func') else graph_expand_tool
+        status_func = get_system_status_tool.func if hasattr(get_system_status_tool, 'func') else get_system_status_tool
+        query_func = query_database_tool.func if hasattr(query_database_tool, 'func') else query_database_tool
+        
+        # Create wrapper functions that properly bind services
+        def _permission_check(user_id, chunk_ids):
             if isinstance(chunk_ids, str):
                 chunk_ids = json.loads(chunk_ids)
-            return permission_check_tool(user_id, json.dumps(chunk_ids), db_service)
+            return perm_check_func(user_id, json.dumps(chunk_ids), db_service)
         
-        def _vector_search(**kwargs):
-            query = kwargs.get('query', '')
-            k = kwargs.get('top_k', top_k)
-            return vector_search_tool(query, k, llm_service, vectordb_service)
+        def _vector_search(query, top_k_param=None):
+            k = top_k_param if top_k_param else top_k
+            return vector_search_func(query, k, llm_service, vectordb_service)
         
-        def _rerank_results(**kwargs):
-            query = kwargs.get('query', '')
-            results = kwargs.get('results', [])
+        def _rerank_results(query, results, top_n=5):
             if isinstance(results, str):
                 results = json.loads(results)
-            top_n = kwargs.get('top_n', 5)
-            return rerank_results_tool(query, results, top_n)
+            return rerank_func(query, results, top_n)
         
-        def _synthesize_answer(**kwargs):
-            query = kwargs.get('query', '')
-            results = kwargs.get('results', [])
+        def _synthesize_answer(query, results):
             if isinstance(results, str):
                 results = json.loads(results)
-            return synthesize_answer_tool(query, results, llm_service)
+            return synthesize_func(query, results, llm_service)
         
-        def _graph_expand(**kwargs):
-            results = kwargs.get('results', [])
+        def _graph_expand(results):
             if isinstance(results, str):
                 results = json.loads(results)
-            return graph_expand_tool(results, vectordb_service)
+            return expand_func(results, vectordb_service)
         
-        def _get_status(**kwargs):
-            return get_system_status_tool(db_service, vectordb_service)
+        def _get_status():
+            return status_func(db_service, vectordb_service)
         
-        def _query_db(**kwargs):
-            sql = kwargs.get('sql', '')
-            return query_database_tool(sql, db_service)
+        def _query_db(sql):
+            return query_func(sql, db_service)
         
         tools = [
             Tool(
@@ -107,7 +107,7 @@ class RetrievalAgent:
             
             Tool(
                 name="vector_search",
-                description="Search vector database for similar chunks. Args: query (str), top_k (int, optional)",
+                description="Search vector database for similar chunks. Args: query (str), top_k_param (int, optional)",
                 func=_vector_search
             ),
             
@@ -360,13 +360,28 @@ Remember: NEVER return information the user doesn't have permission to access.
                 VALUES (?, ?, 'retrieval', ?, ?, 'completed')
             """, (user_id, query, response, execution_time_ms))
             
+            # Check if response time is too slow - trigger healing if needed
+            slow_threshold_ms = 10000  # 10 seconds
+            if execution_time_ms > slow_threshold_ms:
+                print(f"[{self.name}] Slow response detected ({execution_time_ms}ms > {slow_threshold_ms}ms)")
+                print(f"[{self.name}] Triggering HealingAgent for optimization...")
+                try:
+                    # Lazy import to avoid circular imports
+                    from .healing_agent import HealingAgent
+                    healing_agent = HealingAgent(self.services, {})
+                    healing_result = healing_agent.run_healing_cycle()
+                    print(f"[{self.name}] HealingAgent optimization completed")
+                except Exception as heal_error:
+                    print(f"[{self.name}] HealingAgent error: {str(heal_error)}")
+            
             return {
                 "success": True,
                 "query": query,
                 "user_id": user_id,
                 "answer": response,
                 "execution_time_ms": execution_time_ms,
-                "messages": len(messages)
+                "messages": len(messages),
+                "slow_response": execution_time_ms > slow_threshold_ms
             }
             
         except Exception as e:
