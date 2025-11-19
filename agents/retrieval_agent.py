@@ -9,7 +9,7 @@ import time
 from typing import Dict, Any, Optional
 from deepagents import create_deep_agent
 from langchain_core.tools import Tool
-from core.config.loader import load_all_configs
+from core.agent_utils import AgentInitializer, ToolFactory, PromptBuilder
 
 
 class RetrievalAgent:
@@ -30,10 +30,7 @@ class RetrievalAgent:
         self.similarity_threshold = config.get('similarity_threshold', 0.75)
         
         # Load configuration with system prompts
-        try:
-            self.prompts_config = load_all_configs('config').get('prompts', {})
-        except:
-            self.prompts_config = {}
+        self.prompts_config = AgentInitializer.load_prompts_config()
         
         # Create tools
         self.tools = self._create_tools()
@@ -45,142 +42,86 @@ class RetrievalAgent:
             model=services['llm'].get_model()
         )
         
-        print(f"[{self.name}] Initialized with {len(self.tools)} tools (prompts from config)")
+        print(f"[{self.name}] Initialized with {len(self.tools)} tools")
     
     def _create_tools(self):
         """Create retrieval tools with service bindings"""
         from tools.retrieval_tools import (
-            permission_check_tool,
-            vector_search_tool,
-            rerank_results_tool,
-            synthesize_answer_tool,
-            graph_expand_tool
+            permission_check_tool, vector_search_tool, rerank_results_tool,
+            synthesize_answer_tool, graph_expand_tool
         )
         from tools.common_tools import get_system_status_tool, query_database_tool
         
-        # Capture services
+        # Extract functions from @tool decorators
+        funcs = {
+            'perm_check': ToolFactory.extract_tool_func(permission_check_tool),
+            'vector_search': ToolFactory.extract_tool_func(vector_search_tool),
+            'rerank': ToolFactory.extract_tool_func(rerank_results_tool),
+            'synthesize': ToolFactory.extract_tool_func(synthesize_answer_tool),
+            'expand': ToolFactory.extract_tool_func(graph_expand_tool),
+            'status': ToolFactory.extract_tool_func(get_system_status_tool),
+            'query': ToolFactory.extract_tool_func(query_database_tool),
+        }
+        
+        # Services for binding
         db_service = self.services['db']
         llm_service = self.services['llm']
         vectordb_service = self.services['vectordb']
         top_k = self.top_k
         
-        # Get the underlying functions from @tool decorated objects
-        # This allows us to call them directly without the StructuredTool wrapper
-        perm_check_func = permission_check_tool.func if hasattr(permission_check_tool, 'func') else permission_check_tool
-        vector_search_func = vector_search_tool.func if hasattr(vector_search_tool, 'func') else vector_search_tool
-        rerank_func = rerank_results_tool.func if hasattr(rerank_results_tool, 'func') else rerank_results_tool
-        synthesize_func = synthesize_answer_tool.func if hasattr(synthesize_answer_tool, 'func') else synthesize_answer_tool
-        expand_func = graph_expand_tool.func if hasattr(graph_expand_tool, 'func') else graph_expand_tool
-        status_func = get_system_status_tool.func if hasattr(get_system_status_tool, 'func') else get_system_status_tool
-        query_func = query_database_tool.func if hasattr(query_database_tool, 'func') else query_database_tool
-        
-        # Create wrapper functions that properly bind services
+        # Wrapper functions
         def _permission_check(user_id, chunk_ids):
-            if isinstance(chunk_ids, str):
-                chunk_ids = json.loads(chunk_ids)
-            return perm_check_func(user_id, json.dumps(chunk_ids), db_service)
+            chunk_ids = json.loads(chunk_ids) if isinstance(chunk_ids, str) else chunk_ids
+            return funcs['perm_check'](user_id, json.dumps(chunk_ids), db_service)
         
         def _vector_search(query, top_k_param=None):
-            k = top_k_param if top_k_param else top_k
-            return vector_search_func(query, k, llm_service, vectordb_service)
+            k = top_k_param or top_k
+            return funcs['vector_search'](query, k, llm_service, vectordb_service)
         
         def _rerank_results(query, results, top_n=5):
-            if isinstance(results, str):
-                results = json.loads(results)
-            return rerank_func(query, results, top_n)
+            results = json.loads(results) if isinstance(results, str) else results
+            return funcs['rerank'](query, results, top_n)
         
         def _synthesize_answer(query, results):
-            if isinstance(results, str):
-                results = json.loads(results)
-            return synthesize_func(query, results, llm_service)
+            results = json.loads(results) if isinstance(results, str) else results
+            return funcs['synthesize'](query, results, llm_service)
         
         def _graph_expand(results):
-            if isinstance(results, str):
-                results = json.loads(results)
-            return expand_func(results, vectordb_service)
+            results = json.loads(results) if isinstance(results, str) else results
+            return funcs['expand'](results, vectordb_service)
         
-        def _get_status():
-            return status_func(db_service, vectordb_service)
-        
-        def _query_db(sql):
-            return query_func(sql, db_service)
-        
-        tools = [
-            Tool(
-                name="permission_check",
-                description="Filter chunks based on user's RBAC permissions. Args: user_id (str), chunk_ids (list or JSON string)",
-                func=_permission_check
-            ),
-            
-            Tool(
-                name="vector_search",
-                description="Search vector database for similar chunks. Args: query (str), top_k_param (int, optional)",
-                func=_vector_search
-            ),
-            
-            Tool(
-                name="rerank_results",
-                description="Rerank search results to improve relevance. Args: query (str), results (list or JSON), top_n (int, optional)",
-                func=_rerank_results
-            ),
-            
-            Tool(
-                name="synthesize_answer",
-                description="Generate final answer from retrieved chunks using LLM. Args: query (str), results (list or JSON)",
-                func=_synthesize_answer
-            ),
-            
-            Tool(
-                name="graph_expand",
-                description="Expand context by finding related chunks. Args: results (list or JSON)",
-                func=_graph_expand
-            ),
-            
-            Tool(
-                name="get_system_status",
-                description="Get current system status and statistics",
-                func=_get_status
-            ),
-            
-            Tool(
-                name="query_database",
-                description="Execute SQL SELECT query. Args: sql (str)",
-                func=_query_db
-            )
+        return [
+            ToolFactory.create_tool("permission_check", 
+                "Filter chunks based on user's RBAC permissions", _permission_check),
+            ToolFactory.create_tool("vector_search",
+                "Search vector database for similar chunks", _vector_search),
+            ToolFactory.create_tool("rerank_results",
+                "Rerank search results for better relevance", _rerank_results),
+            ToolFactory.create_tool("synthesize_answer",
+                "Generate final answer from retrieved chunks", _synthesize_answer),
+            ToolFactory.create_tool("graph_expand",
+                "Expand context by finding related chunks", _graph_expand),
+            ToolFactory.create_tool("get_system_status",
+                "Get current system status and statistics", 
+                lambda: funcs['status'](db_service, vectordb_service)),
+            ToolFactory.create_tool("query_database",
+                "Execute SQL SELECT query",
+                lambda sql: funcs['query'](sql, db_service)),
         ]
-        
-        return tools
     
     def _get_system_prompt(self) -> str:
         """Get system prompt for RetrievalAgent from config"""
-        # Try to get from config first
-        if self.prompts_config.get('retrieval_agent', {}).get('system_prompt'):
-            return self.prompts_config['retrieval_agent']['system_prompt']
+        fallback = """You are an autonomous retrieval agent for a RAG system with strict RBAC enforcement.
         
-        # Fallback to hardcoded prompt
-        return self.prompts_config.get('retrieval_agent', {}).get('system_prompt', """You are an autonomous retrieval agent for a RAG system with strict RBAC enforcement.
+Core responsibilities:
+1. Search vector database and retrieve relevant chunks
+2. Enforce RBAC permissions strictly - never leak restricted information
+3. Report RBAC analysis transparently
+4. Synthesize answer from allowed chunks only
 
-=== CORE RESPONSIBILITIES ===
-1. Process user queries and retrieve relevant information
-2. Enforce RBAC permissions STRICTLY - never leak restricted information  
-3. Provide transparent reasoning about RBAC tag decisions
-4. Show thought process for relevance assessment
-
-=== AVAILABLE TOOLS ===
-- vector_search: Search embeddings (top K similar chunks)
-- permission_check: Filter by RBAC tags
-- rerank_results: Improve relevance ranking
-- synthesize_answer: Generate final answer
-
-=== STRICT WORKFLOW ===
-1. Search vector DB
-2. Check permissions
-3. Rerank allowed chunks
-4. Synthesize answer
-5. Report RBAC analysis
-
-NEVER bypass RBAC checks.
-""")
+Never bypass RBAC checks. Always report access decisions."""
+        
+        return AgentInitializer.get_agent_prompt('retrieval', self.prompts_config, fallback)
     
     def process_query(self, query: str, user_id: str, 
                      use_planning: bool = False) -> Dict[str, Any]:

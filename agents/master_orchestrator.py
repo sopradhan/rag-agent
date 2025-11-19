@@ -7,7 +7,7 @@ import json
 from typing import Dict, Any, Optional
 from deepagents import create_deep_agent
 from langchain_core.tools import Tool
-from core.config.loader import load_all_configs
+from core.agent_utils import AgentInitializer, ToolFactory
 
 from .ingestion_agent import IngestionAgent
 from .retrieval_agent import RetrievalAgent
@@ -30,10 +30,7 @@ class MasterOrchestrator:
         self.name = "MasterOrchestrator"
         
         # Load configuration with system prompts
-        try:
-            self.prompts_config = load_all_configs('config').get('prompts', {})
-        except:
-            self.prompts_config = {}
+        self.prompts_config = AgentInitializer.load_prompts_config()
         
         # Initialize specialized agents
         self.ingestion_agent = IngestionAgent(
@@ -61,88 +58,53 @@ class MasterOrchestrator:
             model=services['llm'].get_model()
         )
         
-        print(f"[{self.name}] Initialized with 3 specialized agents (prompts from config)")
+        print(f"[{self.name}] Initialized with 3 specialized agents")
     
     def _create_tools(self):
         """Create orchestration tools"""
         from tools.common_tools import get_system_status_tool
         
-        # Tool wrappers - agents are independent, orchestrator decides when to call healing
+        # Tool wrappers
         def ingest_wrapper(**kwargs):
-            result = self.ingestion_agent.ingest_document(
-                kwargs.get('file_path', ''), 
-                kwargs.get('metadata')
-            )
-            return json.dumps(result)
+            return json.dumps(self.ingestion_agent.ingest_document(
+                kwargs.get('file_path', ''), kwargs.get('metadata')))
         
         def retrieval_wrapper(**kwargs):
-            result = self.retrieval_agent.process_query(
-                kwargs.get('query', ''), 
-                kwargs.get('user_id', ''), 
-                kwargs.get('use_planning', False)
-            )
-            return json.dumps(result)
+            return json.dumps(self.retrieval_agent.process_query(
+                kwargs.get('query', ''), kwargs.get('user_id', ''), 
+                kwargs.get('use_planning', False)))
         
         def healing_wrapper(**kwargs):
-            result = self.healing_agent.run_healing_cycle()
-            return json.dumps(result)
+            return json.dumps(self.healing_agent.run_healing_cycle())
         
         tools = [
-            Tool(
-                name="spawn_ingestion_agent",
-                description="Spawn IngestionAgent for document processing. Args: file_path (str), metadata (dict, optional)",
-                func=ingest_wrapper
-            ),
-            
-            Tool(
-                name="spawn_retrieval_agent",
-                description="Spawn RetrievalAgent for query processing. Args: query (str), user_id (str), use_planning (bool, optional)",
-                func=retrieval_wrapper
-            ),
-            
-            Tool(
-                name="spawn_healing_agent",
-                description="Spawn HealingAgent for system optimization and REFRAG",
-                func=healing_wrapper
-            ),
-            
-            Tool(
-                name="analyze_system_health",
-                description="Get comprehensive system health analysis",
-                func=lambda **kwargs: json.dumps(
-                    self.healing_agent.analyze_system_health()
-                )
-            ),
-            
-            Tool(
-                name="get_system_status",
-                description="Get current system status and statistics",
-                func=lambda **kwargs: get_system_status_tool(
-                    self.services['db'],
-                    self.services['vectordb']
-                )
-            )
+            ToolFactory.create_tool("spawn_ingestion_agent",
+                "Spawn IngestionAgent for document processing", ingest_wrapper),
+            ToolFactory.create_tool("spawn_retrieval_agent",
+                "Spawn RetrievalAgent for query processing", retrieval_wrapper),
+            ToolFactory.create_tool("spawn_healing_agent",
+                "Spawn HealingAgent for system optimization", healing_wrapper),
+            ToolFactory.create_tool("analyze_system_health",
+                "Get comprehensive system health analysis",
+                lambda: json.dumps(self.healing_agent.analyze_system_health())),
+            ToolFactory.create_tool("get_system_status",
+                "Get current system status and statistics",
+                lambda: get_system_status_tool(self.services['db'], self.services['vectordb'])),
         ]
         
         return tools
     
     def _get_system_prompt(self) -> str:
         """Get system prompt for MasterOrchestrator from config"""
-        # Try to get from config first
-        if self.prompts_config.get('orchestrator', {}).get('system_prompt'):
-            return self.prompts_config['orchestrator']['system_prompt']
-        
-        # Fallback to basic prompt
-        return """You are the Master Orchestrator for an autonomous RAG system.
+        fallback = """You are the Master Orchestrator for an autonomous RAG system.
 
-Your responsibilities:
+Responsibilities:
 1. Route ingestion requests to IngestionAgent
 2. Route query requests to RetrievalAgent
 3. Decide when system optimization (HealingAgent) is needed
 4. Monitor system health and performance
 
-Agents are independent - they don't auto-trigger other agents.
-You make all decisions about what agents to spawn.
+Agents are independent. You make all spawning decisions.
 
 Available tools:
 - spawn_ingestion_agent(file_path, metadata)
@@ -151,7 +113,40 @@ Available tools:
 - analyze_system_health()
 - get_system_status()
 
-Always report clearly what you're doing and why."""
+Always report what you're doing and why."""
+        
+        return AgentInitializer.get_agent_prompt('orchestrator', self.prompts_config, fallback)
+    
+    def get_dynamic_prompt(self, target_agent: str, user_context: Optional[Dict] = None) -> str:
+        """
+        Generate dynamic prompt for target agent based on current system state.
+        
+        Args:
+            target_agent: 'orchestrator', 'retrieval_agent', 'ingestion_agent', 'healing_agent'
+            user_context: Optional user context (priority, deadline, etc)
+            
+        Returns:
+            Dynamically generated prompt
+        """
+        system_metrics = json.loads(self._tools_by_name()['get_system_status']())
+        return AgentInitializer.generate_dynamic_prompt(target_agent, system_metrics, user_context)
+    
+    def get_action_items(self, target_agent: str) -> list:
+        """
+        Get action items for target agent based on current system state.
+        
+        Args:
+            target_agent: 'orchestrator', 'retrieval_agent', 'ingestion_agent', 'healing_agent'
+            
+        Returns:
+            List of recommended action items
+        """
+        system_metrics = json.loads(self._tools_by_name()['get_system_status']())
+        return AgentInitializer.generate_action_items(target_agent, system_metrics)
+    
+    def _tools_by_name(self) -> Dict[str, Any]:
+        """Create dict of tool name to function for easy access"""
+        return {tool.name: tool.func for tool in self.tools}
    - Agent handles: search, permission check, answer synthesis
 
 3. **System Optimization**:

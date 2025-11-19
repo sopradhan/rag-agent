@@ -8,7 +8,7 @@ import time
 from typing import Dict, Any, List
 from deepagents import create_deep_agent
 from langchain_core.tools import Tool
-from core.config.loader import load_all_configs
+from core.agent_utils import AgentInitializer, ToolFactory
 
 
 class HealingAgent:
@@ -28,10 +28,7 @@ class HealingAgent:
         self.auto_optimize = config.get('auto_optimize', True)
         
         # Load configuration with system prompts
-        try:
-            self.prompts_config = load_all_configs('config').get('prompts', {})
-        except:
-            self.prompts_config = {}
+        self.prompts_config = AgentInitializer.load_prompts_config()
         
         # Create tools
         self.tools = self._create_tools()
@@ -43,7 +40,7 @@ class HealingAgent:
             model=services['llm'].get_model()
         )
         
-        print(f"[{self.name}] Initialized with {len(self.tools)} tools (prompts from config)")
+        print(f"[{self.name}] Initialized with {len(self.tools)} tools")
     
     def _create_tools(self):
         """Create healing tools with service bindings"""
@@ -115,30 +112,21 @@ class HealingAgent:
     
     def _get_system_prompt(self) -> str:
         """Get system prompt for HealingAgent from config"""
-        # Try to get from config first
-        if self.prompts_config.get('healing_agent', {}).get('system_prompt'):
-            return self.prompts_config['healing_agent']['system_prompt']
-        
-        # Fallback prompt
-        return """You are an autonomous system healing agent for REFRAG operations.
+        fallback = """You are an autonomous system healing agent for REFRAG operations.
 
-Your mission:
-1. Monitor system health and performance
-2. Identify optimization opportunities
-3. Implement improvements
-4. Measure improvement metrics
-5. Learn from query patterns
+Mission: Monitor system health, identify optimization opportunities, implement improvements.
 
 Available tools:
-- analyze_heatmap: Find performance issues and cold spots
-- detect_low_quality: Find low-quality documents
+- analyze_heatmap: Find performance issues
+- detect_low_quality: Find low-quality documents  
 - generate_synthetic_questions: Create test questions
-- reindex_documents: Re-chunk and re-embed documents
-- optimize_chunk_strategy: Test and recommend best chunking
+- reindex_documents: Re-chunk and re-embed
+- optimize_chunk_strategy: Test chunking strategies
 - get_system_status: Check system health
 
-Be proactive but cautious - measure twice, optimize once.
-"""
+Measure before/after metrics for all optimizations."""
+        
+        return AgentInitializer.get_agent_prompt('healing', self.prompts_config, fallback)
     
     def run_healing_cycle(self, strategies: List[str] = None) -> Dict[str, Any]:
         """

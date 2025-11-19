@@ -9,7 +9,7 @@ from pathlib import Path
 from deepagents import create_deep_agent
 from langchain_core.tools import tool
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from core.config.loader import load_all_configs
+from core.agent_utils import AgentInitializer
 
 
 class IngestionAgent:
@@ -28,10 +28,7 @@ class IngestionAgent:
         self.name = config.get('name', 'IngestionAgent')
         
         # Load configuration with system prompts
-        try:
-            self.prompts_config = load_all_configs('config').get('prompts', {})
-        except:
-            self.prompts_config = {}
+        self.prompts_config = AgentInitializer.load_prompts_config()
         
         # Create tools with service bindings
         self.tools = self._create_tools()
@@ -43,7 +40,7 @@ class IngestionAgent:
             model=services['llm'].get_model()
         )
         
-        print(f"[{self.name}] Initialized with {len(self.tools)} tools (prompts from config)")
+        print(f"[{self.name}] Initialized with {len(self.tools)} tools")
     
     def _create_tools(self):
         """Create the single ingestion tool with complete 5-step workflow"""
@@ -278,19 +275,15 @@ Respond ONLY with JSON:
     
     def _get_system_prompt(self) -> str:
         """Get system prompt for IngestionAgent from config"""
-        # Try to get from config first
-        if self.prompts_config.get('ingestion_agent', {}).get('system_prompt'):
-            return self.prompts_config['ingestion_agent']['system_prompt']
-        
-        # Fallback prompt
-        return """You are a document ingestion agent. Your job:
+        fallback = """You are a document ingestion agent. Your job:
 
 1. User provides doc_id and file_path
 2. Call: ingest_document_from_file(doc_id, file_path)
 3. Report results
 
-DO NOT delay. CALL THE TOOL NOW.
-"""
+Execute immediately."""
+        
+        return AgentInitializer.get_agent_prompt('ingestion', self.prompts_config, fallback)
     
     def ingest_document(self, file_path: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """
