@@ -2,12 +2,14 @@
 Master Orchestrator
 Top-level agent that coordinates Ingestion, Retrieval, and Healing agents
 Uses DeepAgents with write_todos for complex workflow planning
+Includes parameter management and runtime optimization
 """
 import json
 from typing import Dict, Any, Optional
 from deepagents import create_deep_agent
 from langchain_core.tools import Tool
 from core.agent_utils import AgentInitializer, ToolFactory
+from core.parameter_manager import get_parameter_manager
 
 from .ingestion_agent import IngestionAgent
 from .retrieval_agent import RetrievalAgent
@@ -28,6 +30,9 @@ class MasterOrchestrator:
         self.services = services
         self.configs = configs
         self.name = "MasterOrchestrator"
+        
+        # Get parameter manager for runtime coordination
+        self.param_manager = get_parameter_manager()
         
         # Load configuration with system prompts
         self.prompts_config = AgentInitializer.load_prompts_config()
@@ -64,6 +69,53 @@ class MasterOrchestrator:
         """Create orchestration tools"""
         from tools.common_tools import get_system_status_tool
         
+        # Parameter management tools
+        def get_parameter_status():
+            """Get current parameter configuration"""
+            rag_params = self.param_manager.get_rag_params()
+            llm_params = self.param_manager.get_llm_params()
+            return json.dumps({
+                "rag_parameters": rag_params,
+                "llm_parameters": llm_params,
+                "profiles": ["speed", "accuracy", "balanced", "resource_limited", "high_precision"]
+            })
+        
+        def apply_parameter_profile(profile_name: str):
+            """Apply a predefined parameter profile"""
+            try:
+                self.param_manager.apply_profile(profile_name)
+                rag_params = self.param_manager.get_rag_params()
+                llm_params = self.param_manager.get_llm_params()
+                return json.dumps({
+                    "success": True,
+                    "profile": profile_name,
+                    "rag_parameters": rag_params,
+                    "llm_parameters": llm_params
+                })
+            except Exception as e:
+                return json.dumps({"success": False, "error": str(e)})
+        
+        def set_parameter(param_name: str, value: Any):
+            """Manually set a parameter value"""
+            try:
+                # Try RAG parameter first
+                try:
+                    self.param_manager.set_rag_param(param_name, value)
+                    param_type = "rag"
+                except ValueError:
+                    # Try LLM parameter
+                    self.param_manager.set_llm_param(param_name, value)
+                    param_type = "llm"
+                
+                return json.dumps({
+                    "success": True,
+                    "parameter": param_name,
+                    "type": param_type,
+                    "value": value
+                })
+            except Exception as e:
+                return json.dumps({"success": False, "error": str(e)})
+        
         # Tool wrappers
         def ingest_wrapper(**kwargs):
             return json.dumps(self.ingestion_agent.ingest_document(
@@ -78,18 +130,32 @@ class MasterOrchestrator:
             return json.dumps(self.healing_agent.run_healing_cycle())
         
         tools = [
+            # Agent spawning tools
             ToolFactory.create_tool("spawn_ingestion_agent",
                 "Spawn IngestionAgent for document processing", ingest_wrapper),
             ToolFactory.create_tool("spawn_retrieval_agent",
                 "Spawn RetrievalAgent for query processing", retrieval_wrapper),
             ToolFactory.create_tool("spawn_healing_agent",
                 "Spawn HealingAgent for system optimization", healing_wrapper),
+            
+            # System analysis tools
             ToolFactory.create_tool("analyze_system_health",
                 "Get comprehensive system health analysis",
                 lambda: json.dumps(self.healing_agent.analyze_system_health())),
             ToolFactory.create_tool("get_system_status",
                 "Get current system status and statistics",
                 lambda: get_system_status_tool(self.services['db'], self.services['vectordb'])),
+            
+            # Parameter management tools
+            ToolFactory.create_tool("get_parameter_status",
+                "Get current LLM and RAG parameter configuration",
+                get_parameter_status),
+            ToolFactory.create_tool("apply_parameter_profile",
+                "Apply a predefined parameter profile (speed, accuracy, balanced, resource_limited, high_precision)",
+                apply_parameter_profile),
+            ToolFactory.create_tool("set_parameter",
+                "Manually set a specific parameter value",
+                set_parameter),
         ]
         
         return tools
@@ -103,15 +169,30 @@ Responsibilities:
 2. Route query requests to RetrievalAgent
 3. Decide when system optimization (HealingAgent) is needed
 4. Monitor system health and performance
+5. Manage LLM and RAG parameters for runtime optimization
 
 Agents are independent. You make all spawning decisions.
 
-Available tools:
+Available agent spawning tools:
 - spawn_ingestion_agent(file_path, metadata)
 - spawn_retrieval_agent(query, user_id)
 - spawn_healing_agent()
+
+Available system analysis tools:
 - analyze_system_health()
 - get_system_status()
+
+Available parameter management tools:
+- get_parameter_status() - Check current LLM/RAG parameters
+- apply_parameter_profile(profile) - Apply one of: speed, accuracy, balanced, resource_limited, high_precision
+- set_parameter(name, value) - Manually adjust specific parameter
+
+Parameter optimization guidelines:
+- Use 'speed' profile when response time is critical
+- Use 'accuracy' profile when quality is important
+- Use 'balanced' profile as default
+- Use 'resource_limited' when system is under heavy load
+- Use 'high_precision' for healing operations
 
 Always report what you're doing and why."""
         

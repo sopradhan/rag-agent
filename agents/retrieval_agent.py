@@ -2,6 +2,7 @@
 Retrieval Agent
 Autonomous query processing with RBAC enforcement using DeepAgents
 Uses: permission_check, vector_search, rerank, synthesize_answer
+Uses dynamic parameters from ParameterManager for runtime optimization
 """
 import json
 import hashlib
@@ -10,6 +11,7 @@ from typing import Dict, Any, Optional
 from deepagents import create_deep_agent
 from langchain_core.tools import Tool
 from core.agent_utils import AgentInitializer, ToolFactory, PromptBuilder
+from core.parameter_manager import get_parameter_manager, PerformanceMetrics
 
 
 class RetrievalAgent:
@@ -26,8 +28,14 @@ class RetrievalAgent:
         self.services = services
         self.config = config
         self.name = config.get('name', 'RetrievalAgent')
-        self.top_k = config.get('top_k', 10)
-        self.similarity_threshold = config.get('similarity_threshold', 0.75)
+        
+        # Get parameter manager for dynamic optimization
+        self.param_manager = get_parameter_manager()
+        
+        # Get initial parameters from manager (will use defaults or configured values)
+        rag_params = self.param_manager.get_rag_params()
+        self.top_k = rag_params['top_k']
+        self.similarity_threshold = rag_params['similarity_threshold']
         
         # Load configuration with system prompts
         self.prompts_config = AgentInitializer.load_prompts_config()
@@ -43,6 +51,7 @@ class RetrievalAgent:
         )
         
         print(f"[{self.name}] Initialized with {len(self.tools)} tools")
+        print(f"[{self.name}] Using top_k={self.top_k}, similarity_threshold={self.similarity_threshold}")
     
     def _create_tools(self):
         """Create retrieval tools with service bindings"""
@@ -139,6 +148,11 @@ Never bypass RBAC checks. Always report access decisions."""
         start_time = time.time()
         
         try:
+            # Get current parameters from manager (may have been auto-optimized)
+            rag_params = self.param_manager.get_rag_params()
+            current_top_k = rag_params['top_k']
+            current_similarity_threshold = rag_params['similarity_threshold']
+            
             # Create request for agent
             planning_note = "\nUse write_todos with a list of steps to plan your approach: write_todos(['Step 1', 'Step 2', ...])" if use_planning else ""
             
@@ -150,7 +164,7 @@ User ID: {user_id}
 {planning_note}
 
 Steps you MUST follow:
-1. Search vector database for relevant chunks (top {self.top_k})
+1. Search vector database for relevant chunks (top {current_top_k})
 2. Extract chunk IDs from search results
 3. Check user '{user_id}' permissions for those chunks
 4. Filter to ONLY chunks user is allowed to access
@@ -196,11 +210,29 @@ Remember: NEVER return information the user doesn't have permission to access.
                 metadata={'user_id': user_id, 'use_planning': use_planning}
             )
             
+            # Estimate retrieval accuracy from response (simple heuristic)
+            # In production, would use actual metrics from retrieval results
+            retrieval_accuracy = 0.8 if len(response) > 100 else 0.5
+            
+            # Track performance metrics for optimization
+            metrics = PerformanceMetrics(
+                response_time_ms=execution_time_ms,
+                retrieval_accuracy=retrieval_accuracy,
+                rbac_denial_rate=0.0,  # Would track from actual denials
+                token_usage=len(response) // 4,  # Rough estimate
+                relevance_score=retrieval_accuracy
+            )
+            
+            # Auto-optimize parameters based on metrics
+            optimizations = self.param_manager.auto_optimize(metrics)
+            if optimizations:
+                print(f"[{self.name}] Auto-optimizations applied: {optimizations}")
+            
             # Update query heatmap
             self.services['db'].update_query_heatmap(
                 query_hash=query_hash,
                 query_example=query,
-                retrieval_accuracy=0.8,  # TODO: Calculate actual accuracy
+                retrieval_accuracy=retrieval_accuracy,
                 response_time_ms=execution_time_ms
             )
             
@@ -217,7 +249,11 @@ Remember: NEVER return information the user doesn't have permission to access.
                 "user_id": user_id,
                 "answer": response,
                 "execution_time_ms": execution_time_ms,
-                "messages": len(messages)
+                "messages": len(messages),
+                "parameters": {
+                    "top_k": current_top_k,
+                    "similarity_threshold": current_similarity_threshold
+                }
             }
             
         except Exception as e:

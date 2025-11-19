@@ -2,6 +2,7 @@
 Ingestion Agent
 Autonomous document processing with DeepAgents
 5-step workflow: chunk → metadata → RBAC → embeddings → store
+Uses dynamic parameters from ParameterManager for runtime optimization
 """
 import json
 from typing import Dict, Any
@@ -10,6 +11,7 @@ from deepagents import create_deep_agent
 from langchain_core.tools import tool
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from core.agent_utils import AgentInitializer
+from core.parameter_manager import get_parameter_manager, PerformanceMetrics
 
 
 class IngestionAgent:
@@ -27,6 +29,14 @@ class IngestionAgent:
         self.config = config
         self.name = config.get('name', 'IngestionAgent')
         
+        # Get parameter manager for dynamic optimization
+        self.param_manager = get_parameter_manager()
+        
+        # Get initial parameters from manager
+        rag_params = self.param_manager.get_rag_params()
+        self.chunk_size = rag_params['chunk_size']
+        self.chunk_overlap = rag_params['chunk_overlap']
+        
         # Load configuration with system prompts
         self.prompts_config = AgentInitializer.load_prompts_config()
         
@@ -41,6 +51,7 @@ class IngestionAgent:
         )
         
         print(f"[{self.name}] Initialized with {len(self.tools)} tools")
+        print(f"[{self.name}] Using chunk_size={self.chunk_size}, chunk_overlap={self.chunk_overlap}")
     
     def _create_tools(self):
         """Create the single ingestion tool with complete 5-step workflow"""
@@ -296,6 +307,9 @@ Execute immediately."""
         Returns:
             Ingestion results dictionary
         """
+        import time
+        start_time = time.time()
+        
         try:
             # Verify file exists
             path = Path(file_path)
@@ -305,10 +319,17 @@ Execute immediately."""
             # Generate document ID
             doc_id = metadata.get('id') if metadata else path.stem
             
+            # Get current parameters from manager
+            rag_params = self.param_manager.get_rag_params()
+            current_chunk_size = rag_params['chunk_size']
+            current_chunk_overlap = rag_params['chunk_overlap']
+            
             # Create direct request - tell agent to call the tool NOW
             request = f"""Ingest document.
 doc_id: {doc_id}
 file_path: {file_path}
+chunk_size: {current_chunk_size}
+chunk_overlap: {current_chunk_overlap}
 
 Call ingest_document_from_file("{doc_id}", "{file_path}") NOW."""
             
@@ -324,12 +345,34 @@ Call ingest_document_from_file("{doc_id}", "{file_path}") NOW."""
             final_message = messages[-1] if messages else None
             response = final_message.content if final_message and hasattr(final_message, 'content') else 'No response'
             
+            # Calculate execution time
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Track metrics for optimization (ingestion is successful if no errors)
+            metrics = PerformanceMetrics(
+                response_time_ms=execution_time_ms,
+                retrieval_accuracy=1.0,  # Ingestion success metric
+                rbac_denial_rate=0.0,
+                token_usage=len(response) // 4,
+                relevance_score=1.0
+            )
+            
+            # Auto-optimize parameters based on ingestion performance
+            optimizations = self.param_manager.auto_optimize(metrics)
+            if optimizations:
+                print(f"[{self.name}] Auto-optimizations applied: {optimizations}")
+                # Update chunk parameters if they changed
+                new_rag_params = self.param_manager.get_rag_params()
+                self.chunk_size = new_rag_params['chunk_size']
+                self.chunk_overlap = new_rag_params['chunk_overlap']
+            
             # Log
             self.services['db'].log_agent_operation(
                 agent_name=self.name,
                 operation_type='ingestion',
                 query=f"Ingest: {file_path}",
                 final_response=response,
+                response_time_ms=execution_time_ms,
                 metadata={'doc_id': doc_id, 'file_path': file_path}
             )
             
@@ -337,7 +380,12 @@ Call ingest_document_from_file("{doc_id}", "{file_path}") NOW."""
                 "success": True,
                 "doc_id": doc_id,
                 "response": response,
-                "messages": len(messages)
+                "messages": len(messages),
+                "execution_time_ms": execution_time_ms,
+                "parameters": {
+                    "chunk_size": current_chunk_size,
+                    "chunk_overlap": current_chunk_overlap
+                }
             }
             
         except Exception as e:
