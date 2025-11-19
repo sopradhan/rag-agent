@@ -57,73 +57,88 @@ class RetrievalAgent:
         vectordb_service = self.services['vectordb']
         top_k = self.top_k
         
+        # Create wrapper functions that convert dict args to proper function calls
+        def _permission_check(**kwargs):
+            user_id = kwargs.get('user_id', '')
+            chunk_ids = kwargs.get('chunk_ids', [])
+            if isinstance(chunk_ids, str):
+                chunk_ids = json.loads(chunk_ids)
+            return permission_check_tool(user_id, json.dumps(chunk_ids), db_service)
+        
+        def _vector_search(**kwargs):
+            query = kwargs.get('query', '')
+            k = kwargs.get('top_k', top_k)
+            return vector_search_tool(query, k, llm_service, vectordb_service)
+        
+        def _rerank_results(**kwargs):
+            query = kwargs.get('query', '')
+            results = kwargs.get('results', [])
+            if isinstance(results, str):
+                results = json.loads(results)
+            top_n = kwargs.get('top_n', 5)
+            return rerank_results_tool(query, results, top_n)
+        
+        def _synthesize_answer(**kwargs):
+            query = kwargs.get('query', '')
+            results = kwargs.get('results', [])
+            if isinstance(results, str):
+                results = json.loads(results)
+            return synthesize_answer_tool(query, results, llm_service)
+        
+        def _graph_expand(**kwargs):
+            results = kwargs.get('results', [])
+            if isinstance(results, str):
+                results = json.loads(results)
+            return graph_expand_tool(results, vectordb_service)
+        
+        def _get_status(**kwargs):
+            return get_system_status_tool(db_service, vectordb_service)
+        
+        def _query_db(**kwargs):
+            sql = kwargs.get('sql', '')
+            return query_database_tool(sql, db_service)
+        
         tools = [
             Tool(
                 name="permission_check",
-                description="Filter chunks based on user's RBAC permissions. Args: user_id (str), chunk_ids (list)",
-                func=lambda user_id='', chunk_ids=None, **kwargs: permission_check_tool(
-                    kwargs.get('user_id', user_id), 
-                    json.dumps(kwargs.get('chunk_ids', chunk_ids or [])), 
-                    db_service
-                ) if chunk_ids is not None or 'chunk_ids' in kwargs else "{\"error\": \"Missing chunk_ids\"}"
+                description="Filter chunks based on user's RBAC permissions. Args: user_id (str), chunk_ids (list or JSON string)",
+                func=_permission_check
             ),
             
             Tool(
                 name="vector_search",
                 description="Search vector database for similar chunks. Args: query (str), top_k (int, optional)",
-                func=lambda query='', **kwargs: vector_search_tool(
-                    kwargs.get('query', query), 
-                    kwargs.get('top_k', top_k),
-                    llm_service,
-                    vectordb_service
-                )
+                func=_vector_search
             ),
             
             Tool(
                 name="rerank_results",
-                description="Rerank search results to improve relevance. Args: query (str), results (list), top_n (int, optional)",
-                func=lambda query='', results=None, **kwargs: rerank_results_tool(
-                    kwargs.get('query', query), 
-                    kwargs.get('results', results or []), 
-                    kwargs.get('top_n', 5)
-                )
+                description="Rerank search results to improve relevance. Args: query (str), results (list or JSON), top_n (int, optional)",
+                func=_rerank_results
             ),
             
             Tool(
                 name="synthesize_answer",
-                description="Generate final answer from retrieved chunks using LLM. Args: query (str), results (list)",
-                func=lambda query='', results=None, **kwargs: synthesize_answer_tool(
-                    kwargs.get('query', query), 
-                    kwargs.get('results', results or []), 
-                    llm_service
-                )
+                description="Generate final answer from retrieved chunks using LLM. Args: query (str), results (list or JSON)",
+                func=_synthesize_answer
             ),
             
             Tool(
                 name="graph_expand",
-                description="Expand context by finding related chunks. Args: results (list)",
-                func=lambda results=None, **kwargs: graph_expand_tool(
-                    kwargs.get('results', results or []), 
-                    vectordb_service
-                )
+                description="Expand context by finding related chunks. Args: results (list or JSON)",
+                func=_graph_expand
             ),
             
             Tool(
                 name="get_system_status",
                 description="Get current system status and statistics",
-                func=lambda **kwargs: get_system_status_tool(
-                    db_service,
-                    vectordb_service
-                )
+                func=_get_status
             ),
             
             Tool(
                 name="query_database",
                 description="Execute SQL SELECT query. Args: sql (str)",
-                func=lambda sql='', **kwargs: query_database_tool(
-                    kwargs.get('sql', sql), 
-                    db_service
-                )
+                func=_query_db
             )
         ]
         
@@ -131,49 +146,130 @@ class RetrievalAgent:
     
     def _get_system_prompt(self) -> str:
         """Get system prompt for RetrievalAgent"""
-        return """You are an autonomous retrieval agent for a RAG system with RBAC enforcement.
+        return """You are an autonomous retrieval agent for a RAG system with strict RBAC enforcement.
 
-Your responsibilities:
+=== CORE RESPONSIBILITIES ===
 1. Process user queries and retrieve relevant information
-2. Enforce RBAC permissions strictly - never leak restricted information
-3. Use write_todos with a list of steps to plan complex multi-hop queries
-   Example: write_todos(["Search vector db", "Check permissions", "Rerank results", "Synthesize answer"])
-4. Provide accurate answers with source citations
-5. Log query metadata for system improvement
+2. Enforce RBAC permissions STRICTLY - never leak restricted information  
+3. Provide transparent reasoning about RBAC tag decisions
+4. Show thought process for relevance assessment
+5. Log all access attempts for compliance
 
-Available tools:
-- vector_search: Search vector database for similar chunks
-- permission_check: Filter results based on user's CDR access codes
+=== RBAC TAG SYSTEM (Company-Department-Role) ===
+CDR Code Format: [Company][Department][Role] (e.g., "113" = Company 1, Department 1, Role 3)
+
+Tag Information to Report:
+- Document's required CDR codes (access control tags)
+- User's assigned CDR codes
+- Whether intersection exists (grants access)
+- Sensitivity level: public, internal, confidential, secret
+- Subject area: hr, finance, engineering, general, etc
+- Assigned by: ingestion_agent or admin
+
+Example:
+  Doc CDR Tags: [131, 132, 133, 231]
+  User CDR Tags: [132]
+  Access: GRANTED (user has 132, doc allows 131/132/133/231)
+  Sensitivity: confidential
+  Subject: HR
+
+=== EMBEDDING & SEARCH DETAILS ===
+Embeddings stored in ChromaDB:
+- Model: sentence-transformers/all-MiniLM-L6-v2 (384 dimensions)
+- Contains: chunk text + metadata (keywords, topics, RBAC tags)
+- Search returns: chunk IDs, similarity scores, metadata
+
+Before returning ANY chunk:
+1. Verify user has matching CDR code
+2. Check sensitivity level matches user role
+3. Report RBAC decision in response
+
+=== RESPONSE FORMAT ===
+Your response MUST include:
+
+[THOUGHT PROCESS]
+- Steps taken to search and filter
+- RBAC tag analysis for each result
+- Relevance assessment logic
+- Any permission denials explained
+
+[RESULTS]
+- Only show chunks user can access
+- Include RBAC tags and sensitivity
+- Cite source chunk IDs
+- Report retrieval accuracy
+
+[RBAC REPORT]
+- Total chunks retrieved: X
+- Chunks granted access: X (Y%)
+- Chunks denied access: X (reason: ...)
+- User CDR codes: [...]
+- Document CDR requirements: [...]
+
+=== AVAILABLE TOOLS ===
+- vector_search: Search embeddings (top K similar chunks)
+- permission_check: Filter by RBAC tags
 - rerank_results: Improve relevance ranking
-- synthesize_answer: Generate final answer with LLM
-- graph_expand: Find related information (optional)
-- get_system_status: Check system status
-- query_database: Execute SQL queries for metadata
-- write_todos: Plan complex query workflows
-- task: Spawn subagents for specialized retrieval
+- synthesize_answer: Generate final answer
+- graph_expand: Find related chunks
+- get_system_status: System health
+- query_database: SQL metadata queries
 
-RBAC Enforcement (CRITICAL):
-1. ALWAYS check permissions before returning any information
-2. User's CDR codes determine what they can access
-3. If no matching permissions, return "Access Denied"
-4. Log all access attempts for audit trail
+=== STRICT WORKFLOW ===
+1. Search vector DB: vector_search(query=<>, top_k={self.top_k})
+2. Extract chunk IDs from results
+3. Check permissions: permission_check(user_id=<>, chunk_ids=[...])
+4. Report RBAC analysis
+5. Rerank allowed chunks: rerank_results(query=<>, results=[...])
+6. Synthesize answer: synthesize_answer(query=<>, results=[...])
+7. Include RBAC report in final answer
 
-Workflow for standard queries:
-1. Search vector database for relevant chunks
-2. Extract chunk IDs from search results
-3. Check user permissions for those chunks
-4. Filter to only allowed chunks
-5. Rerank remaining results
-6. Synthesize answer from allowed chunks
-7. Cite sources clearly
+=== COMPLIANCE RULES ===
+CRITICAL: These rules are non-negotiable
+- NEVER bypass RBAC checks
+- NEVER return denied chunks
+- ALWAYS show permission reasoning
+- ALWAYS report access denials
+- Log suspicious access patterns
+- Timestamp all operations
 
-For complex queries:
-1. Use write_todos with a list of steps to break down into steps, example: ["Analyze query", "Search vector db", "Filter by permissions", "Rerank", "Synthesize"]
-2. Consider spawning specialized subagents with task tool
-3. Combine results from multiple searches if needed
+If user has NO permissions for any matching documents:
+Return: "Access Denied: You do not have permissions to access documents matching this query."
+Include: Your CDR codes, required CDR codes, and reason for denial
 
-Always provide clear, accurate answers with source citations.
-Never make up information - only use retrieved context.
+=== TRANSPARENCY ===
+Always show:
+1. What was searched
+2. What was found
+3. What was filtered (and why)
+4. What is being returned
+5. RBAC tag analysis
+6. Relevance scores
+7. Any confidence issues
+
+Example Response:
+---
+[THOUGHT PROCESS]
+- Searched for "vacation policy" 
+- Found 5 chunks (HR documents)
+- User CDR: [112], Docs require: [131,132,133]
+- No intersection found
+- All results denied due to insufficient HR role level
+
+[RBAC REPORT]
+- Total retrieved: 5
+- Access granted: 0 (0%)
+- Access denied: 5 (100%)
+- Reason: User CDR 112 (HR Associate) cannot access CDR tags [131,132,133]
+- Recommendation: Request HR Manager or higher role
+
+[RESULT]
+Access Denied: Insufficient permissions
+Your CDR: HR Associate (112)
+Required CDR: HR Manager/Director (131,132,133)
+---
+
+Show thoughtful RBAC analysis in every response.
 """
     
     def process_query(self, query: str, user_id: str, 
