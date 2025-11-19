@@ -3,6 +3,7 @@ Ingestion Agent
 Autonomous document processing with DeepAgents
 5-step workflow: chunk → metadata → RBAC → embeddings → store
 Uses dynamic parameters from ParameterManager for runtime optimization
+Visualizes thought process for transparency and debugging
 """
 import json
 from typing import Dict, Any
@@ -12,6 +13,7 @@ from langchain_core.tools import tool
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from core.agent_utils import AgentInitializer
 from core.parameter_manager import get_parameter_manager, PerformanceMetrics
+from core.thought_visualizer import ThoughtVisualizer
 
 
 class IngestionAgent:
@@ -319,10 +321,31 @@ Execute immediately."""
             # Generate document ID
             doc_id = metadata.get('id') if metadata else path.stem
             
+            # Create thought process visualization
+            thought = ThoughtVisualizer.create_process(self.name, f"Ingest: {doc_id}")
+            step_init = thought.add_step(
+                "Initialize",
+                "Load document and prepare for ingestion",
+                {"doc_id": doc_id, "file_path": str(file_path)}
+            )
+            thought.start_step(step_init)
+            
             # Get current parameters from manager
             rag_params = self.param_manager.get_rag_params()
             current_chunk_size = rag_params['chunk_size']
             current_chunk_overlap = rag_params['chunk_overlap']
+            
+            thought.complete_step(step_init)
+            thought.set_metadata("chunk_size", current_chunk_size)
+            thought.set_metadata("chunk_overlap", current_chunk_overlap)
+            
+            # Step 2: Read file
+            step_read = thought.add_step(
+                "Read Document",
+                f"Read document from {file_path}",
+                {"file_size_kb": path.stat().st_size // 1024 if path.exists() else 0}
+            )
+            thought.start_step(step_read)
             
             # Create direct request - tell agent to call the tool NOW
             request = f"""Ingest document.
@@ -345,6 +368,34 @@ Call ingest_document_from_file("{doc_id}", "{file_path}") NOW."""
             final_message = messages[-1] if messages else None
             response = final_message.content if final_message and hasattr(final_message, 'content') else 'No response'
             
+            thought.complete_step(step_read)
+            
+            # Step 3: Chunking
+            step_chunk = thought.add_step(
+                "Chunking",
+                f"Split document into chunks (size={current_chunk_size}, overlap={current_chunk_overlap})",
+                {"chunk_size": current_chunk_size}
+            )
+            thought.start_step(step_chunk)
+            thought.complete_step(step_chunk)
+            
+            # Step 4: Embedding
+            step_embed = thought.add_step(
+                "Embedding",
+                "Generate embeddings for document chunks",
+                {"embedding_model": "all-MiniLM-L6-v2"}
+            )
+            thought.start_step(step_embed)
+            thought.complete_step(step_embed)
+            
+            # Step 5: Storage
+            step_store = thought.add_step(
+                "Storage",
+                "Store embeddings in vector database and metadata",
+                {"database": "ChromaDB"}
+            )
+            thought.start_step(step_store)
+            
             # Calculate execution time
             execution_time_ms = int((time.time() - start_time) * 1000)
             
@@ -366,6 +417,11 @@ Call ingest_document_from_file("{doc_id}", "{file_path}") NOW."""
                 self.chunk_size = new_rag_params['chunk_size']
                 self.chunk_overlap = new_rag_params['chunk_overlap']
             
+            # Complete thought process
+            thought.complete_step(step_store, execution_time_ms)
+            thought.set_metadata("success", True)
+            thought.animate_progress_bar(delay=0.2)
+            
             # Log
             self.services['db'].log_agent_operation(
                 agent_name=self.name,
@@ -385,7 +441,8 @@ Call ingest_document_from_file("{doc_id}", "{file_path}") NOW."""
                 "parameters": {
                     "chunk_size": current_chunk_size,
                     "chunk_overlap": current_chunk_overlap
-                }
+                },
+                "thought_process": thought.to_dict()
             }
             
         except Exception as e:

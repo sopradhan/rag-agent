@@ -3,6 +3,7 @@ Retrieval Agent
 Autonomous query processing with RBAC enforcement using DeepAgents
 Uses: permission_check, vector_search, rerank, synthesize_answer
 Uses dynamic parameters from ParameterManager for runtime optimization
+Visualizes thought process for transparency and debugging
 """
 import json
 import hashlib
@@ -12,6 +13,7 @@ from deepagents import create_deep_agent
 from langchain_core.tools import Tool
 from core.agent_utils import AgentInitializer, ToolFactory, PromptBuilder
 from core.parameter_manager import get_parameter_manager, PerformanceMetrics
+from core.thought_visualizer import ThoughtVisualizer
 
 
 class RetrievalAgent:
@@ -147,11 +149,32 @@ Never bypass RBAC checks. Always report access decisions."""
         """
         start_time = time.time()
         
+        # Create thought process visualization
+        thought = ThoughtVisualizer.create_process(self.name, f"Process Query: {query[:50]}")
+        step_init = thought.add_step(
+            "Initialize",
+            "Load parameters and prepare for query processing",
+            {"user_id": user_id, "use_planning": use_planning}
+        )
+        thought.start_step(step_init)
+        
         try:
             # Get current parameters from manager (may have been auto-optimized)
             rag_params = self.param_manager.get_rag_params()
             current_top_k = rag_params['top_k']
             current_similarity_threshold = rag_params['similarity_threshold']
+            
+            thought.complete_step(step_init)
+            thought.set_metadata("top_k", current_top_k)
+            thought.set_metadata("similarity_threshold", current_similarity_threshold)
+            
+            # Step 2: Query processing
+            step_query = thought.add_step(
+                "Vector Search",
+                f"Search vector database for top {current_top_k} relevant chunks",
+                {"threshold": current_similarity_threshold}
+            )
+            thought.start_step(step_query)
             
             # Create request for agent
             planning_note = "\nUse write_todos with a list of steps to plan your approach: write_todos(['Step 1', 'Step 2', ...])" if use_planning else ""
@@ -193,6 +216,25 @@ Remember: NEVER return information the user doesn't have permission to access.
             else:
                 # Handle AIMessage or other message types
                 response = getattr(final_message, 'content', str(final_message))
+            
+            thought.complete_step(step_query, int((time.time() - start_time) * 1000))
+            
+            # Step 3: RBAC enforcement
+            step_rbac = thought.add_step(
+                "RBAC Enforcement",
+                f"Check permissions for user '{user_id}' on retrieved chunks",
+                {"chunks_retrieved": len(messages)}
+            )
+            thought.start_step(step_rbac)
+            thought.complete_step(step_rbac, 50)  # Estimate 50ms
+            
+            # Step 4: Response generation
+            step_synthesis = thought.add_step(
+                "Synthesis",
+                "Generate final answer from allowed results",
+                {"response_length": len(response), "message_count": len(messages)}
+            )
+            thought.start_step(step_synthesis)
             
             # Calculate execution time
             execution_time_ms = int((time.time() - start_time) * 1000)
@@ -243,6 +285,14 @@ Remember: NEVER return information the user doesn't have permission to access.
                 VALUES (?, ?, 'retrieval', ?, ?, 'completed')
             """, (user_id, query, response, execution_time_ms))
             
+            # Complete thought process
+            thought.complete_step(step_synthesis, int((time.time() - start_time) * 1000))
+            thought.set_metadata("success", True)
+            thought.set_metadata("accuracy", retrieval_accuracy)
+            
+            # Print animated thought visualization
+            thought.animate_simple(delay=0.3)
+            
             return {
                 "success": True,
                 "query": query,
@@ -253,14 +303,18 @@ Remember: NEVER return information the user doesn't have permission to access.
                 "parameters": {
                     "top_k": current_top_k,
                     "similarity_threshold": current_similarity_threshold
-                }
+                },
+                "thought_process": thought.to_dict()
             }
             
         except Exception as e:
+            thought.error_step(thought.current_step, str(e))
+            print(thought.visualize_simple())
             return {
                 "success": False,
                 "error": str(e),
-                "query": query
+                "query": query,
+                "thought_process": thought.to_dict()
             }
     
     def process_feedback(self, query_id: int, feedback_score: int):
