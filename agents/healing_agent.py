@@ -281,13 +281,28 @@ Focus on high-impact improvements that will benefit users.
             )
             
             # Log agent operation
-            self.services['db'].log_agent_operation(
+            op_id = self.services['db'].log_agent_operation(
                 agent_name=self.name,
                 operation_type='healing',
                 query='Run healing cycle',
                 final_response=response,
                 response_time_ms=execution_time_ms,
                 metadata={'strategies': strategies}
+            )
+            
+            # Log token usage
+            prompt_tokens = (len(str(strategies)) + len(response)) // 4
+            completion_tokens = len(response) // 4
+            self.services['db'].log_token_usage(
+                self.name, op_id, 'ollama', 'qwen2.5:0.5b',
+                prompt_tokens, completion_tokens
+            )
+            
+            # Store agent memory (healing context)
+            self.services['db'].store_agent_memory(
+                self.name, "last_healing_cycle",
+                json.dumps({"strategies": strategies, "improvement": 0.0}),
+                "healing_result"
             )
             
             return {

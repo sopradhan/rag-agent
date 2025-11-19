@@ -116,17 +116,20 @@ class MasterOrchestrator:
             except Exception as e:
                 return json.dumps({"success": False, "error": str(e)})
         
-        # Tool wrappers
+        # Tool wrappers with spawn logging
         def ingest_wrapper(**kwargs):
+            self.services['db'].log_agent_spawn(self.name, 'IngestionAgent', 'Document ingestion requested')
             return json.dumps(self.ingestion_agent.ingest_document(
                 kwargs.get('file_path', ''), kwargs.get('metadata')))
         
         def retrieval_wrapper(**kwargs):
+            self.services['db'].log_agent_spawn(self.name, 'RetrievalAgent', f"Query: {kwargs.get('query', '')}")
             return json.dumps(self.retrieval_agent.process_query(
                 kwargs.get('query', ''), kwargs.get('user_id', ''), 
                 kwargs.get('use_planning', False)))
         
         def healing_wrapper(**kwargs):
+            self.services['db'].log_agent_spawn(self.name, 'HealingAgent', 'System healing cycle requested')
             return json.dumps(self.healing_agent.run_healing_cycle())
         
         tools = [
@@ -228,19 +231,6 @@ Always report what you're doing and why."""
     def _tools_by_name(self) -> Dict[str, Any]:
         """Create dict of tool name to function for easy access"""
         return {tool.name: tool.func for tool in self.tools}
-   - Agent handles: search, permission check, answer synthesis
-
-3. **System Optimization**:
-   - Route to HealingAgent
-   - Agent handles: heatmap analysis, reindexing, quality improvement
-
-4. **Complex Multi-Step**:
-   - Use write_todos to plan workflow
-   - Use task to spawn parallel agents
-   - Coordinate results
-
-Always consider RBAC implications and system capacity before routing tasks.
-"""
     
     def process_request(self, request: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """

@@ -423,13 +423,21 @@ Call ingest_document_from_file("{doc_id}", "{file_path}") NOW."""
             thought.animate_progress_bar(delay=0.2)
             
             # Log
-            self.services['db'].log_agent_operation(
+            op_id = self.services['db'].log_agent_operation(
                 agent_name=self.name,
                 operation_type='ingestion',
                 query=f"Ingest: {file_path}",
                 final_response=response,
                 response_time_ms=execution_time_ms,
                 metadata={'doc_id': doc_id, 'file_path': file_path}
+            )
+            
+            # Log token usage
+            prompt_tokens = (len(file_path) + len(response)) // 4
+            completion_tokens = len(response) // 4
+            self.services['db'].log_token_usage(
+                self.name, op_id, 'ollama', 'qwen2.5:0.5b',
+                prompt_tokens, completion_tokens
             )
             
             return {

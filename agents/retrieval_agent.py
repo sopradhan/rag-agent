@@ -164,6 +164,17 @@ Never bypass RBAC checks. Always report access decisions."""
             current_top_k = rag_params['top_k']
             current_similarity_threshold = rag_params['similarity_threshold']
             
+            # Analyze query heatmap to learn from historical patterns
+            heatmap = self.services['db'].get_heatmap_analysis()
+            if heatmap['poor_quality']:
+                # Increase similarity threshold for high-precision queries if past ones were poor quality
+                current_similarity_threshold = min(0.85, current_similarity_threshold + 0.05)
+                thought.add_metadata("heatmap_analysis", "Detected poor quality queries - increasing threshold")
+            if heatmap['cold_spots'] and len(heatmap['cold_spots']) > 0:
+                # Rare queries might need more results
+                current_top_k = min(20, current_top_k + 3)
+                thought.add_metadata("heatmap_analysis", "Detected cold spot query - retrieving more chunks")
+            
             thought.complete_step(step_init)
             thought.set_metadata("top_k", current_top_k)
             thought.set_metadata("similarity_threshold", current_similarity_threshold)
@@ -252,6 +263,14 @@ Remember: NEVER return information the user doesn't have permission to access.
                 metadata={'user_id': user_id, 'use_planning': use_planning}
             )
             
+            # Log token usage (estimate: ~4 chars per token)
+            prompt_tokens = (len(query) + len(str(retrieved_docs))) // 4
+            completion_tokens = len(response) // 4
+            self.services['db'].log_token_usage(
+                self.name, op_id, 'ollama', 'qwen2.5:0.5b',
+                prompt_tokens, completion_tokens
+            )
+            
             # Estimate retrieval accuracy from response (simple heuristic)
             # In production, would use actual metrics from retrieval results
             retrieval_accuracy = 0.8 if len(response) > 100 else 0.5
@@ -276,6 +295,15 @@ Remember: NEVER return information the user doesn't have permission to access.
                 query_example=query,
                 retrieval_accuracy=retrieval_accuracy,
                 response_time_ms=execution_time_ms
+            )
+            
+            # Store agent memory (execution context for future queries)
+            self.services['db'].store_agent_memory(
+                self.name, f"query_{query_hash}", 
+                json.dumps({
+                    "query": query, "accuracy": retrieval_accuracy,
+                    "time_ms": execution_time_ms, "user": user_id
+                }), 'query_result'
             )
             
             # Store in query history

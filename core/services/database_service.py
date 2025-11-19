@@ -343,3 +343,17 @@ class DatabaseService:
             json.dumps(after_metrics),
             improvement_delta
         ))
+    
+    def log_agent_spawn(self, parent_agent: str, child_agent: str, reason: str) -> int:
+        """Log when an agent spawns another agent"""
+        return self.insert_and_get_id("""
+            INSERT INTO agent_spawns (parent_agent, child_agent, spawn_reason)
+            VALUES (?, ?, ?)
+        """, (parent_agent, child_agent, reason))
+    
+    def store_agent_memory(self, agent_name: str, memory_key: str, memory_value: str, memory_type: str = 'execution_result') -> int:
+        """Store context or memory for an agent"""
+        return self.insert_and_get_id("""
+            INSERT INTO agent_memory (agent_name, memory_key, memory_value, memory_type)
+            VALUES (?, ?, ?, ?)
+        """, (agent_name, memory_key, memory_value, memory_type))
