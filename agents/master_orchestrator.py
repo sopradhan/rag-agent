@@ -60,34 +60,67 @@ class MasterOrchestrator:
         """Create orchestration tools"""
         from tools.common_tools import get_system_status_tool
         
+        # Tool wrappers that handle responses
+        def ingest_wrapper(**kwargs):
+            result = self.ingestion_agent.ingest_document(
+                kwargs.get('file_path', ''), 
+                kwargs.get('metadata')
+            )
+            # After ingestion, optionally spawn healing for quick test
+            if result.get('success') and kwargs.get('run_quick_test', True):
+                print(f"[{self.name}] Post-ingestion quick test - spawning RetrievalAgent...")
+                try:
+                    test_query = kwargs.get('test_query', 'What documents are available?')
+                    test_user = kwargs.get('test_user', 'system@test.com')
+                    retrieval_result = self.retrieval_agent.process_query(test_query, test_user, use_planning=False)
+                    result['quick_test'] = retrieval_result
+                except Exception as e:
+                    result['quick_test_error'] = str(e)
+            return json.dumps(result)
+        
+        def retrieval_wrapper(**kwargs):
+            result = self.retrieval_agent.process_query(
+                kwargs.get('query', ''), 
+                kwargs.get('user_id', ''), 
+                kwargs.get('use_planning', False)
+            )
+            # If slow response detected, spawn healing
+            if result.get('slow_response', False):
+                print(f"[{self.name}] Slow response detected - spawning HealingAgent...")
+                try:
+                    healing_result = self.healing_agent.run_healing_cycle()
+                    result['auto_healing_triggered'] = True
+                    result['healing_result'] = healing_result
+                except Exception as e:
+                    result['healing_error'] = str(e)
+            return json.dumps(result)
+        
+        def healing_wrapper(**kwargs):
+            result = self.healing_agent.run_healing_cycle()
+            return json.dumps(result)
+        
         tools = [
             Tool(
-                name="route_to_ingestion",
-                description="Route document ingestion tasks to IngestionAgent. Args: file_path (str), metadata (dict, optional)",
-                func=lambda **kwargs: json.dumps(
-                    self.ingestion_agent.ingest_document(kwargs.get('file_path', ''), kwargs.get('metadata'))
-                )
+                name="spawn_ingestion_agent",
+                description="Spawn IngestionAgent for document processing. Args: file_path (str), metadata (dict), test_query (str), run_quick_test (bool)",
+                func=ingest_wrapper
             ),
             
             Tool(
-                name="route_to_retrieval",
-                description="Route queries to RetrievalAgent. Args: query (str), user_id (str), use_planning (bool, optional)",
-                func=lambda **kwargs: json.dumps(
-                    self.retrieval_agent.process_query(kwargs.get('query', ''), kwargs.get('user_id', ''), kwargs.get('use_planning', False))
-                )
+                name="spawn_retrieval_agent",
+                description="Spawn RetrievalAgent for query processing. Args: query (str), user_id (str), use_planning (bool)",
+                func=retrieval_wrapper
             ),
             
             Tool(
-                name="route_to_healing",
-                description="Route optimization tasks to HealingAgent",
-                func=lambda **kwargs: json.dumps(
-                    self.healing_agent.run_healing_cycle()
-                )
+                name="spawn_healing_agent",
+                description="Spawn HealingAgent for system optimization and REFRAG",
+                func=healing_wrapper
             ),
             
             Tool(
                 name="analyze_system_health",
-                description="Get comprehensive system health analysis from HealingAgent",
+                description="Get comprehensive system health analysis",
                 func=lambda **kwargs: json.dumps(
                     self.healing_agent.analyze_system_health()
                 )
@@ -107,48 +140,100 @@ class MasterOrchestrator:
     
     def _get_system_prompt(self) -> str:
         """Get system prompt for MasterOrchestrator"""
-        return """You are the Master Orchestrator for an autonomous RAG system with REFRAG capabilities.
+        return """You are the Master Orchestrator for an autonomous RAG system with REFRAG self-healing capabilities.
 
-Your role:
-1. Understand user requests and route to appropriate specialized agents
-2. Coordinate complex multi-agent workflows
-3. Use write_todos to plan sophisticated operations
-4. Monitor overall system health
-5. Make strategic decisions about system optimization
+=== CORE RESPONSIBILITIES ===
+1. Analyze user requests and dynamically spawn appropriate subagents
+2. Coordinate complex multi-agent workflows and parallel processing
+3. Monitor performance and trigger auto-healing when needed
+4. Make intelligent decisions about which agents to deploy
+5. Optimize resource usage through intelligent agent scheduling
 
-Available Agents:
-1. **IngestionAgent**: Document processing, chunking, RBAC classification, embedding
-   - Use for: Adding new documents, batch ingestion, document updates
+=== AUTONOMOUS SUBAGENTS ===
+1. **IngestionAgent** (Document Processing)
+   - Handles: chunking, metadata extraction, RBAC classification, embedding generation
+   - Auto-triggers: Quick retrieval test after ingestion
+   - Monitor: Success rate, ingestion time
    
-2. **RetrievalAgent**: Query processing with RBAC enforcement
-   - Use for: Answering user questions, information retrieval
+2. **RetrievalAgent** (Query Processing with RBAC)
+   - Handles: Vector search, permission checking, answer synthesis, transparency
+   - Auto-triggers: HealingAgent if response time > 10 seconds
+   - Monitor: Response time, accuracy, permission denials
    
-3. **HealingAgent**: System optimization and self-healing (REFRAG)
-   - Use for: Performance improvements, quality optimization, synthetic question generation
+3. **HealingAgent** (System Optimization - REFRAG)
+   - Handles: Performance optimization, synthetic question generation, quality improvement
+   - Auto-triggers: After slow queries or periodic maintenance
+   - Monitor: System health, index quality, response times
 
-Available tools:
-- route_to_ingestion: Send ingestion tasks to IngestionAgent
-- route_to_retrieval: Send queries to RetrievalAgent
-- route_to_healing: Trigger healing cycles
-- analyze_system_health: Get health analysis
-- get_system_status: Get current statistics
-- write_todos: Plan complex multi-step workflows
-- task: Spawn specialized subagents for parallel processing
+=== AVAILABLE TOOLS ===
+Tools that spawn subagents dynamically:
+- spawn_ingestion_agent: Deploy IngestionAgent with auto-testing
+- spawn_retrieval_agent: Deploy RetrievalAgent with auto-healing
+- spawn_healing_agent: Deploy HealingAgent for optimization
+- analyze_system_health: Get comprehensive health metrics
+- get_system_status: Get current system statistics
 
-Decision Logic:
-- Document-related requests → IngestionAgent
-- Question/query requests → RetrievalAgent
-- Performance/optimization requests → HealingAgent
-- Complex workflows → Use write_todos + task spawning
+=== INTELLIGENT ROUTING ===
+Document-related requests:
+  → spawn_ingestion_agent (with run_quick_test=true)
+  → Automatically tests retrieval after ingestion
+  
+Query/Retrieval requests:
+  → spawn_retrieval_agent
+  → Automatically triggers healing if slow (>10s)
+  
+Performance/Health requests:
+  → analyze_system_health
+  → spawn_healing_agent if issues detected
 
-Example workflows:
+Complex Multi-Step Workflows:
+  → Use write_todos to plan steps
+  → Use spawn_* tools for each step
+  → Coordinate results and next actions
 
-1. **New Document Ingestion**:
-   - Route to IngestionAgent with file path
-   - Agent handles: chunking, metadata, RBAC, embedding
+=== AUTO-HEALING TRIGGERS ===
+1. **Slow Query** (>10 seconds)
+   → RetrievalAgent detects → Auto-spawns HealingAgent
+   
+2. **Post-Ingestion**
+   → IngestionAgent completes → Auto-runs quick test query
+   → If test fails → Auto-spawns HealingAgent
+   
+3. **Health Monitoring**
+   → Periodically check system_health
+   → If degradation detected → Spawn healing cycle
 
-2. **User Query**:
-   - Route to RetrievalAgent with query + user_id
+=== STRATEGIC DECISIONS ===
+When to spawn multiple agents:
+- After bulk ingestion: spawn_ingestion_agent + monitor with get_system_status
+- During high load: spawn_healing_agent proactively
+- Complex workflows: parallelize with write_todos + spawn_* tools
+
+When to NOT spawn healing:
+- Single slow query (might be legitimate)
+- System under normal load
+- Recent healing cycle completed
+
+=== WORKFLOW EXAMPLES ===
+
+**Workflow 1: Ingest Document + Quick Test**
+1. spawn_ingestion_agent(file_path, run_quick_test=true, test_query="...")
+2. Agent automatically runs test query after ingestion
+3. If test fails, agents coordinate healing
+4. Return results with test status
+
+**Workflow 2: User Query with Auto-Healing**
+1. spawn_retrieval_agent(query, user_id)
+2. If response time > 10s, RetrievalAgent auto-triggers healing
+3. Return query results + healing status
+
+**Workflow 3: System Health Check & Optimization**
+1. analyze_system_health()
+2. If issues detected, spawn_healing_agent()
+3. Monitor healing progress
+4. Return health report + healing results
+
+Always balance autonomy with resource efficiency. Make smart decisions about which agents to spawn and when.
    - Agent handles: search, permission check, answer synthesis
 
 3. **System Optimization**:
