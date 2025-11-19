@@ -46,21 +46,188 @@ class ClassificationResult:
 
 class DeepClassifier:
     """
-    Hybrid classification agent combining rule-based and LLM approaches
+    Hybrid classification agent combining rule-based and LLM approaches.
+    Now integrates with SQLite RBAC hierarchy: Company → Department → Role → User
     """
     
-    def __init__(self, use_llm: bool = True, ollama_url: str = "http://localhost:11434"):
+    def __init__(self, use_llm: bool = True, ollama_url: str = "http://localhost:11434",
+                 company_id: Optional[int] = None):
         self.db = RAGDatabase()
         self.config = ConfigLoader()
         self.use_llm = use_llm
         self.ollama_url = ollama_url
+        self.company_id = company_id or 1  # Default to first company
         
-        # Load department configurations
-        self.departments = self.config.get_departments()
+        # Load RBAC hierarchy from SQLite
+        self.rbac_hierarchy = self._load_rbac_hierarchy()
+        
+        # Load static department configurations (fallback)
+        self.static_departments = self.config.get_departments()
         
         # Confidence thresholds
         self.RULE_CONFIDENCE_THRESHOLD = 0.7
         self.LLM_FALLBACK_THRESHOLD = 0.5
+    
+    def _load_rbac_hierarchy(self) -> Dict[str, Any]:
+        """
+        Load complete RBAC hierarchy from SQLite database.
+        Maps: company → departments → roles → users
+        """
+        cursor = self.db.conn.cursor()
+        hierarchy = {}
+        
+        try:
+            # Get company info
+            cursor.execute(
+                "SELECT company_id, name FROM company WHERE company_id = ?",
+                (self.company_id,)
+            )
+            company = cursor.fetchone()
+            
+            if not company:
+                print(f"[WARNING] Company {self.company_id} not found in database")
+                return {}
+            
+            company_name = company["name"]
+            hierarchy["company"] = {
+                "id": self.company_id,
+                "name": company_name,
+                "departments": {}
+            }
+            
+            # Get all departments for this company
+            cursor.execute(
+                """
+                SELECT d.department_id, d.name, d.level
+                FROM department d
+                WHERE d.company_id = ?
+                ORDER BY d.level
+                """,
+                (self.company_id,)
+            )
+            
+            departments = cursor.fetchall()
+            
+            for dept in departments:
+                dept_id = dept["department_id"]
+                dept_name = dept["name"]
+                dept_level = dept["level"]
+                
+                hierarchy["company"]["departments"][dept_name] = {
+                    "id": dept_id,
+                    "name": dept_name,
+                    "level": dept_level,
+                    "roles": {}
+                }
+                
+                # Get roles for this department
+                cursor.execute(
+                    """
+                    SELECT r.role_id, r.role_name, r.role_type, r.grade
+                    FROM role r
+                    WHERE r.department_id = ?
+                    ORDER BY r.role_id
+                    """,
+                    (dept_id,)
+                )
+                
+                roles = cursor.fetchall()
+                
+                for role in roles:
+                    role_id = role["role_id"]
+                    role_name = role["role_name"]
+                    role_type = role["role_type"]
+                    grade = role["grade"]
+                    
+                    hierarchy["company"]["departments"][dept_name]["roles"][role_name] = {
+                        "id": role_id,
+                        "name": role_name,
+                        "type": role_type,
+                        "grade": grade,
+                        "access_level": self._grade_to_access_level(grade)
+                    }
+            
+            print(f"[OK] Loaded RBAC hierarchy for {company_name}: "
+                  f"{len(hierarchy['company']['departments'])} departments")
+            
+            return hierarchy
+        
+        except Exception as e:
+            print(f"[ERROR] Failed to load RBAC hierarchy: {e}")
+            return {}
+    
+    def _grade_to_access_level(self, grade: str) -> int:
+        """Convert role grade to access level (1-5)"""
+        grade_map = {
+            "intern": 1,
+            "junior": 2,
+            "L1": 1,
+            "L2": 2,
+            "L3": 3,
+            "L4": 4,
+            "L5": 5,
+            "senior": 3,
+            "lead": 4,
+            "manager": 4,
+            "director": 5,
+            "executive": 5,
+            "c-level": 5
+        }
+        return grade_map.get(grade.lower() if grade else "", 2)
+    
+    def get_departments(self) -> Dict[str, Dict]:
+        """
+        Get departments from RBAC or fallback to static config
+        
+        Returns dict of {dept_name: {keywords, access_level, roles}}
+        """
+        if self.rbac_hierarchy and "company" in self.rbac_hierarchy:
+            departments = {}
+            
+            for dept_name, dept_info in self.rbac_hierarchy["company"]["departments"].items():
+                # Extract keywords from static config for matching
+                static_config = self.static_departments.get(dept_name.lower(), {})
+                keywords = static_config.get("keywords", [])
+                
+                departments[dept_name] = {
+                    "id": dept_info["id"],
+                    "name": dept_name,
+                    "keywords": keywords,
+                    "access_level": min(3, max([r["access_level"] for r in dept_info["roles"].values()] or [2])),
+                    "roles": list(dept_info["roles"].keys())
+                }
+            
+            return departments
+        else:
+            # Fallback to static configuration
+            return self.static_departments
+    
+    def get_department_access_level(self, department_name: str) -> int:
+        """
+        Get minimum access level for a department
+        """
+        if self.rbac_hierarchy and "company" in self.rbac_hierarchy:
+            dept = self.rbac_hierarchy["company"]["departments"].get(department_name)
+            if dept:
+                roles = dept.get("roles", {})
+                if roles:
+                    return min([r["access_level"] for r in roles.values()])
+        
+        # Fallback
+        return self.static_departments.get(department_name.lower(), {}).get("access_level", 2)
+    
+    def get_role_access_level(self, department_name: str, role_name: str) -> int:
+        """
+        Get access level for a specific role in a department
+        """
+        if self.rbac_hierarchy and "company" in self.rbac_hierarchy:
+            dept = self.rbac_hierarchy["company"]["departments"].get(department_name)
+            if dept:
+                role = dept["roles"].get(role_name)
+                if role:
+                    return role["access_level"]
+        
+        return 2  # Default access level
         
     def classify_document(self, content: str, source: str, 
                          metadata: Optional[Dict] = None) -> ClassificationResult:
@@ -125,47 +292,51 @@ class DeepClassifier:
     
     def _rule_based_classify(self, content: str, source: str) -> ClassificationResult:
         """
-        Fast rule-based classification using keyword matching
+        Fast rule-based classification using keyword matching against RBAC departments
         """
         content_lower = content.lower()
+        source_lower = source.lower()
         scores = {}
         
+        # Get departments from RBAC or static config
+        departments = self.get_departments()
+        
         # Score each department based on keyword matches
-        for dept_name, dept_config in self.departments.items():
-            keywords = dept_config.get('keywords', [])
+        for dept_name, dept_info in departments.items():
+            keywords = dept_info.get('keywords', [])
             score = sum(1 for keyword in keywords if keyword.lower() in content_lower)
             
             # Boost score if source filename contains department name
-            if dept_name.lower() in source.lower():
+            if dept_name.lower() in source_lower:
                 score += 5
             
             scores[dept_name] = score
         
         # Get best match
         if not scores or max(scores.values()) == 0:
-            # No matches - default to generic
-            classification = "general"
+            # No matches - default to general
+            classification = "General"
             confidence = 0.3
             access_level = 1
             namespace = "general/uncategorized"
         else:
             classification = max(scores, key=scores.get)
             max_score = scores[classification]
-            total_keywords = len(self.departments[classification].get('keywords', []))
+            total_keywords = len(departments[classification].get('keywords', []))
             
             # Calculate confidence based on match rate
             confidence = min(1.0, max_score / max(total_keywords * 0.5, 1))
             
-            # Get access level from config
-            access_level = self.departments[classification].get('access_level', 2)
+            # Get access level from RBAC
+            access_level = self.get_department_access_level(classification)
             
             # Build namespace
-            namespace = f"{classification}/general"
+            namespace = f"{classification.lower()}/general"
         
         # Determine sub-categories from content
         sub_categories = self._extract_subcategories(content, classification)
         if sub_categories:
-            namespace = f"{classification}/{sub_categories[0]}"
+            namespace = f"{classification.lower()}/{sub_categories[0].lower()}"
         
         return ClassificationResult(
             classification=classification,
@@ -173,38 +344,45 @@ class DeepClassifier:
             method="rule_based",
             namespace=namespace,
             min_access_level=access_level,
-            reasoning=f"Matched {scores[classification]} keywords for {classification}",
+            reasoning=f"Matched {scores.get(classification, 0)} keywords for {classification} from RBAC hierarchy",
             sub_categories=sub_categories,
-            metadata={"keyword_scores": scores}
+            metadata={
+                "keyword_scores": scores,
+                "department_id": departments.get(classification, {}).get("id"),
+                "company_id": self.company_id
+            }
         )
     
     def _llm_classify(self, content: str, source: str, 
                      rule_result: ClassificationResult) -> ClassificationResult:
         """
-        Use Ollama LLM for intelligent classification
+        Use Ollama LLM for intelligent classification using RBAC departments
         """
-        # Prepare prompt for LLM
-        departments_list = ", ".join(self.departments.keys())
+        # Get departments from RBAC
+        departments = self.get_departments()
+        departments_list = ", ".join(departments.keys())
         
-        prompt = f"""You are a document classification expert. Analyze this document and classify it.
+        # Prepare prompt for LLM
+        prompt = f"""You are a document classification expert. Analyze this document and classify it into ONE of the available organizational departments.
 
 Document Source: {source}
 
 Document Content (first 1000 chars):
 {content[:1000]}
 
-Available Departments: {departments_list}
+Available Departments (from organizational RBAC hierarchy):
+{departments_list}
 
 Rule-based classification suggested: {rule_result.classification} (confidence: {rule_result.confidence:.2f})
 
 Tasks:
 1. Classify this document into ONE of the available departments
 2. Provide confidence score (0.0 to 1.0)
-3. Suggest hierarchical sub-categories (e.g., hr/recruitment/policies)
-4. Recommend minimum access level (1-5, where 5 is most restricted)
-5. Explain your reasoning
+3. Suggest hierarchical sub-categories (e.g., engineering/infrastructure/deployment)
+4. Recommend minimum access level (1-5, where 5 is most restricted/executive level)
+5. Explain your reasoning based on organizational context
 
-Respond in JSON format:
+Respond ONLY in JSON format (no markdown, no code blocks):
 {{
     "classification": "department_name",
     "confidence": 0.85,
@@ -235,15 +413,9 @@ Respond in JSON format:
                 llm_output = result.get('response', '{}')
                 
                 # Parse JSON from LLM response
-                # Extract JSON from markdown code blocks if present
-                json_match = re.search(r'```json\s*(\{.*?\})\s*```', llm_output, re.DOTALL)
+                json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
                 if json_match:
-                    llm_output = json_match.group(1)
-                else:
-                    # Try to find JSON object
-                    json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
-                    if json_match:
-                        llm_output = json_match.group(0)
+                    llm_output = json_match.group(0)
                 
                 parsed = json.loads(llm_output)
                 
@@ -253,17 +425,26 @@ Respond in JSON format:
                 min_access_level = int(parsed.get('min_access_level', 2))
                 reasoning = parsed.get('reasoning', 'LLM classification')
                 
-                # Validate classification is in allowed departments
-                if classification not in self.departments:
+                # Validate classification is in RBAC departments
+                valid_depts = list(departments.keys())
+                if classification not in valid_depts:
+                    # Try to find closest match
                     classification = rule_result.classification
                     confidence *= 0.7  # Reduce confidence for invalid classification
+                    reasoning += " [Classification adjusted to RBAC hierarchy]"
+                
+                # Validate access level
+                min_access_level = max(1, min(5, min_access_level))
                 
                 # Build namespace
-                namespace = classification
+                namespace = classification.lower()
                 if sub_categories:
-                    namespace = f"{classification}/{'/'.join(sub_categories[:2])}"
+                    namespace = f"{classification.lower()}/{'/'.join([s.lower() for s in sub_categories[:2]])}"
                 else:
-                    namespace = f"{classification}/general"
+                    namespace = f"{classification.lower()}/general"
+                
+                # Get department ID from RBAC
+                dept_id = departments.get(classification, {}).get("id")
                 
                 return ClassificationResult(
                     classification=classification,
@@ -275,7 +456,9 @@ Respond in JSON format:
                     sub_categories=sub_categories,
                     metadata={
                         "llm_model": "llama3.2:latest",
-                        "llm_raw_output": llm_output[:500]
+                        "llm_raw_output": llm_output[:500],
+                        "department_id": dept_id,
+                        "company_id": self.company_id
                     }
                 )
             else:
@@ -292,7 +475,7 @@ Respond in JSON format:
                 min_access_level=rule_result.min_access_level,
                 reasoning=f"LLM failed, using rule-based: {str(e)}",
                 sub_categories=rule_result.sub_categories,
-                metadata={"error": str(e)}
+                metadata={"error": str(e), "company_id": self.company_id}
             )
     
     def _hybrid_classify(self, rule_result: ClassificationResult, 
@@ -351,10 +534,18 @@ Respond in JSON format:
     
     def _extract_subcategories(self, content: str, department: str) -> List[str]:
         """
-        Extract sub-categories from content based on department
+        Extract sub-categories from content based on department from RBAC hierarchy
+        Uses a combination of static patterns and RBAC role information
         """
         content_lower = content.lower()
         subcategories = []
+        
+        # Get roles for this department from RBAC
+        rbac_roles = []
+        if self.rbac_hierarchy and "company" in self.rbac_hierarchy:
+            dept_info = self.rbac_hierarchy["company"]["departments"].get(department)
+            if dept_info:
+                rbac_roles = list(dept_info["roles"].keys())
         
         # Department-specific subcategory patterns
         patterns = {
@@ -393,14 +584,28 @@ Respond in JSON format:
                 'regulations': ['gdpr', 'hipaa', 'sox', 'regulation', 'law'],
                 'audits': ['audit', 'inspection', 'review', 'assessment'],
                 'policies': ['policy', 'procedure', 'standard', 'requirement']
+            },
+            'operations': {
+                'procedures': ['procedure', 'process', 'workflow', 'standard operating'],
+                'maintenance': ['maintenance', 'upkeep', 'service', 'preventive'],
+                'management': ['management', 'coordination', 'scheduling', 'tracking']
             }
         }
         
-        if department in patterns:
-            for subcategory, keywords in patterns[department].items():
+        # Get lowercase department name
+        dept_lower = department.lower()
+        
+        # Look for patterns
+        if dept_lower in patterns:
+            for subcategory, keywords in patterns[dept_lower].items():
                 matches = sum(1 for keyword in keywords if keyword in content_lower)
                 if matches >= 2:  # At least 2 keyword matches
                     subcategories.append(subcategory)
+        
+        # Add role names from RBAC if they appear in content
+        for role in rbac_roles:
+            if role.lower() in content_lower:
+                subcategories.append(role.lower())
         
         return subcategories[:3]  # Return top 3
     

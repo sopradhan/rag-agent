@@ -1,5 +1,5 @@
-"""Orchestrator package."""
+"""Orchestrator package - LangChain DeepAgents Orchestrator."""
 
-from .master_orchestrator import MasterOrchestrator
+from .orchestrator import MasterOrchestrator
 
 __all__ = ["MasterOrchestrator"]

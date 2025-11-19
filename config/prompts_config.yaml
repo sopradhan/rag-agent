@@ -1,0 +1,424 @@
+# Prompts Configuration
+# Centralized prompt templates with COT reasoning steps
+
+classification:
+  rule_based_classify:
+    template: |
+      You are a document classification expert.
+      
+      Document Source: {source}
+      Document Content: {content}
+      
+      Available Departments: {departments}
+      
+      Classify this document into appropriate departments based on keywords and content.
+      Return a list of (department, confidence) tuples.
+    variables:
+      - source
+      - content
+      - departments
+    description: "Classify document into departments using rule-based matching"
+  
+  llm_classify:
+    template: |
+      You are an expert document classifier with deep understanding of organizational structure.
+      
+      **Task**: Classify the provided document into the most appropriate department(s).
+      
+      **Document Information**:
+      - Source: {source}
+      - Content Preview: {content}
+      
+      **Available Departments**: {departments}
+      
+      **Current Classification**: {suggested_classification}
+      
+      **Instructions**:
+      1. Analyze the document content carefully
+      2. Identify key terms and concepts
+      3. Match against available departments
+      4. Provide a confidence score (0.0 - 1.0)
+      5. Explain your reasoning
+      
+      Return JSON format:
+      {
+        "departments": [
+          {"name": "department_name", "confidence": 0.95, "reasoning": "explanation"}
+        ],
+        "primary_department": "department_name",
+        "access_level_required": 3
+      }
+    variables:
+      - source
+      - content
+      - departments
+      - suggested_classification
+    cot_steps:
+      - step: 1
+        description: "Read and understand document purpose"
+        prompt: "What is the main purpose of this document?"
+      - step: 2
+        description: "Extract key terms and concepts"
+        prompt: "What are the key technical or business terms mentioned?"
+      - step: 3
+        description: "Determine organizational relevance"
+        prompt: "Which departments would find this document relevant?"
+      - step: 4
+        description: "Match against available departments"
+        prompt: "Based on the departments available, which is the best match?"
+    description: "LLM-based document classification with COT reasoning"
+  
+  extract_subcategories:
+    template: |
+      Based on the document: {source}
+      
+      Available Categories: {categories}
+      Available Roles: {roles}
+      
+      Extract specific subcategories, topics, and role-specific content areas from this document.
+      
+      Return JSON:
+      {
+        "subcategories": ["category1", "category2"],
+        "role_specific": {"role_name": ["topic1", "topic2"]},
+        "tags": ["tag1", "tag2"]
+      }
+    variables:
+      - source
+      - categories
+      - roles
+    description: "Extract subcategories and role-specific content"
+
+retrieval:
+  search_documents:
+    template: |
+      You are a document retrieval expert. Find the most relevant documents.
+      
+      **User Query**: {query}
+      **User Access Level**: {access_level}
+      **Available Documents**: 
+      {documents}
+      
+      Rank documents by relevance to the query. Consider:
+      1. Content relevance to user query
+      2. User's access level restrictions
+      3. Document recency and reliability
+      
+      Return top {top_k} most relevant documents with reasoning.
+    variables:
+      - query
+      - access_level
+      - documents
+      - top_k
+    cot_steps:
+      - step: 1
+        description: "Understand user information need"
+        prompt: "What specific information is the user looking for?"
+      - step: 2
+        description: "Check access restrictions"
+        prompt: "What is the user's access level and are they authorized?"
+      - step: 3
+        description: "Score document relevance"
+        prompt: "How relevant is each document to the query?"
+      - step: 4
+        description: "Rank and filter results"
+        prompt: "Which documents should be returned in priority order?"
+      - step: 5
+        description: "Prepare retrieval response"
+        prompt: "Format the results with reasoning for each selection"
+    description: "Retrieve relevant documents with RBAC filtering"
+  
+  filter_by_rbac:
+    template: |
+      Filter documents based on RBAC constraints.
+      
+      **User**: {user_id}
+      **User Department**: {department}
+      **User Role**: {role}
+      **Access Level**: {access_level}
+      
+      **Documents to Filter**:
+      {documents}
+      
+      Remove documents the user cannot access based on:
+      - Minimum required access level
+      - Department permissions
+      - Role-based restrictions
+      
+      Return accessible documents only.
+    variables:
+      - user_id
+      - department
+      - role
+      - access_level
+      - documents
+    description: "Filter documents by RBAC access control"
+
+synthesis:
+  generate_answer:
+    template: |
+      You are an expert answer synthesis engine.
+      
+      **User Query**: {query}
+      **Retrieved Documents**:
+      {documents}
+      
+      Create a comprehensive answer:
+      1. Synthesize information from retrieved documents
+      2. Identify key insights and connections
+      3. Cite document sources for each claim
+      4. Flag any contradictions or gaps
+      
+      Return:
+      {
+        "answer": "comprehensive answer",
+        "sources": [
+          {"doc_id": "id", "content": "relevant excerpt", "confidence": 0.95}
+        ],
+        "confidence": 0.85,
+        "gaps": "any missing information"
+      }
+    variables:
+      - query
+      - documents
+    cot_steps:
+      - step: 1
+        description: "Understand the query intent"
+        prompt: "What type of answer is needed?"
+      - step: 2
+        description: "Extract relevant information"
+        prompt: "Which documents contain relevant information?"
+      - step: 3
+        description: "Synthesize across sources"
+        prompt: "How do these documents relate to each other?"
+      - step: 4
+        description: "Cite sources"
+        prompt: "Which documents support each claim?"
+      - step: 5
+        description: "Assess completeness"
+        prompt: "Are there gaps in the answer?"
+    description: "Synthesize answers from retrieved documents"
+  
+  validate_consistency:
+    template: |
+      Validate consistency of information across documents.
+      
+      **Query**: {query}
+      **Documents**:
+      {documents}
+      
+      Check for:
+      1. Contradictions between documents
+      2. Outdated information
+      3. Conflicting instructions or policies
+      4. Inconsistent naming or definitions
+      
+      Report any inconsistencies found.
+    variables:
+      - query
+      - documents
+    description: "Validate consistency across sources"
+
+rbac_operations:
+  validate_rbac_access:
+    template: |
+      Validate RBAC access for user.
+      
+      **User ID**: {user_id}
+      **User Department**: {department}
+      **User Role**: {role}
+      **Access Level**: {access_level}
+      
+      **Resource Details**:
+      - Resource Type: {resource_type}
+      - Required Level: {required_level}
+      - Allowed Departments: {allowed_departments}
+      
+      Determine if user has access. Return:
+      {
+        "has_access": true/false,
+        "reason": "explanation",
+        "required_escalation": true/false
+      }
+    variables:
+      - user_id
+      - department
+      - role
+      - access_level
+      - resource_type
+      - required_level
+      - allowed_departments
+    description: "Validate user RBAC access to resources"
+  
+  analyze_namespace_health:
+    template: |
+      Analyze health of a document namespace.
+      
+      **Namespace**: {namespace}
+      **Document Count**: {doc_count}
+      **Average Size**: {avg_size}
+      **Total Size**: {total_size}
+      **Access Level Distribution**: {access_distribution}
+      
+      Provide:
+      1. Health assessment (healthy/warning/critical)
+      2. Optimization recommendations
+      3. Fragmentation analysis
+      4. Access level distribution
+      
+      Return JSON with recommendations.
+    variables:
+      - namespace
+      - doc_count
+      - avg_size
+      - total_size
+      - access_distribution
+    cot_steps:
+      - step: 1
+        description: "Assess document count"
+        prompt: "Is the document count appropriate for this namespace?"
+      - step: 2
+        description: "Check size metrics"
+        prompt: "Are the size metrics within expected ranges?"
+      - step: 3
+        description: "Analyze distribution"
+        prompt: "Is access level distribution balanced?"
+      - step: 4
+        description: "Identify issues"
+        prompt: "What fragmentation or imbalance issues exist?"
+      - step: 5
+        description: "Generate recommendations"
+        prompt: "What optimizations would improve namespace health?"
+    description: "Analyze namespace health and optimization opportunities"
+
+namespace_resolution:
+  resolve_namespace:
+    template: |
+      Resolve optimal namespace for document.
+      
+      **Document Source**: {source}
+      **Document Content**: {content}
+      **Available Namespaces**: {namespaces}
+      
+      Available categories:
+      1. Technical - Engineering, API, Architecture
+      2. Process - Workflows, Procedures, Instructions
+      3. Policy - HR, Legal, Compliance
+      4. Knowledge - General Info, FAQ, Lessons Learned
+      5. Incident - Issues, Incidents, Root Causes
+      6. Data - Data Catalogs, Schemas, Analytics
+      7. Personal - User-specific, Role-based, Training
+      
+      Determine the best namespace:
+      {
+        "namespace": "category_name",
+        "confidence": 0.92,
+        "reasoning": "why this namespace"
+      }
+    variables:
+      - source
+      - content
+      - namespaces
+    cot_steps:
+      - step: 1
+        description: "Analyze document purpose"
+        prompt: "What is the primary purpose of this document?"
+      - step: 2
+        description: "Extract content characteristics"
+        prompt: "What are the key characteristics (technical, procedural, policy, etc)?"
+      - step: 3
+        description: "Match to namespace definitions"
+        prompt: "Which namespace definition best matches these characteristics?"
+      - step: 4
+        description: "Consider secondary namespaces"
+        prompt: "Could this belong to multiple namespaces?"
+      - step: 5
+        description: "Determine confidence and reasoning"
+        prompt: "How confident are we in this classification?"
+    description: "Resolve document to optimal namespace with reasoning"
+
+healing:
+  recommend_healing:
+    template: |
+      Recommend healing strategy for fragmented namespace.
+      
+      **Namespace**: {namespace}
+      **Issue Type**: {issue_type}
+      **Fragment Count**: {fragment_count}
+      **Suggested Merge Size**: {suggested_merge_size}
+      
+      Issue Types:
+      - over_fragmented: Too many small fragments
+      - under_fragmented: Too few large chunks
+      - inconsistent_metadata: Metadata issues
+      - embedding_drift: Embedding quality degradation
+      - access_imbalance: Uneven RBAC distribution
+      
+      Recommend healing approach:
+      - merge_fragments: Combine small chunks
+      - refragment: Re-split documents
+      - reindex: Rebuild indexes
+      - rotate: Move between namespaces
+      
+      Return healing plan JSON.
+    variables:
+      - namespace
+      - issue_type
+      - fragment_count
+      - suggested_merge_size
+    cot_steps:
+      - step: 1
+        description: "Identify root cause"
+        prompt: "What caused this fragmentation?"
+      - step: 2
+        description: "Assess impact"
+        prompt: "How does this affect retrieval performance?"
+      - step: 3
+        description: "Consider healing methods"
+        prompt: "What healing strategies could apply?"
+      - step: 4
+        description: "Estimate costs"
+        prompt: "What are the computational costs of each approach?"
+      - step: 5
+        description: "Generate recommendation"
+        prompt: "What is the optimal healing strategy?"
+    description: "Generate namespace healing recommendations"
+  
+  validate_healing_results:
+    template: |
+      Validate healing operation results.
+      
+      **Healing Type**: {healing_type}
+      **Before Metrics**: {before_metrics}
+      **After Metrics**: {after_metrics}
+      
+      Validate:
+      1. Fragmentation metrics improved
+      2. Embedding quality maintained
+      3. RBAC constraints preserved
+      4. No data loss or corruption
+      
+      Return validation report.
+    variables:
+      - healing_type
+      - before_metrics
+      - after_metrics
+    description: "Validate healing operation success"
+
+# Default COT step format
+default_cot_steps:
+  - step: 1
+    description: "Understand the input"
+    prompt: "What is the primary input and what needs to be determined?"
+  - step: 2
+    description: "Extract key information"
+    prompt: "What key information is relevant to this task?"
+  - step: 3
+    description: "Apply domain knowledge"
+    prompt: "What domain-specific knowledge applies?"
+  - step: 4
+    description: "Generate insights"
+    prompt: "What insights can be derived from this information?"
+  - step: 5
+    description: "Format output"
+    prompt: "How should the result be formatted?"

@@ -22,8 +22,67 @@ class RAGDatabase:
         self._create_tables()
     
     def _create_tables(self):
-        """Create all necessary tables."""
+        """Create all necessary tables including hierarchical RBAC."""
         cursor = self.conn.cursor()
+        
+        # Company table (root organization)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS company (
+                company_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name VARCHAR(255) NOT NULL UNIQUE,
+                domain VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Department table (hierarchical)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS department (
+                department_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id INTEGER NOT NULL,
+                parent_department_id INTEGER,
+                name VARCHAR(255) NOT NULL,
+                level INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES company(company_id),
+                FOREIGN KEY (parent_department_id) REFERENCES department(department_id),
+                UNIQUE(company_id, parent_department_id, name)
+            )
+        """)
+        
+        # Role table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS role (
+                role_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                department_id INTEGER NOT NULL,
+                role_name VARCHAR(255) NOT NULL,
+                role_type VARCHAR(100),
+                grade VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (department_id) REFERENCES department(department_id),
+                UNIQUE(department_id, role_name, grade)
+            )
+        """)
+        
+        # Users table (company:department:role mapping)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(255) NOT NULL UNIQUE,
+                email VARCHAR(255),
+                company_id INTEGER NOT NULL,
+                department_id INTEGER NOT NULL,
+                role_id INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES company(company_id),
+                FOREIGN KEY (department_id) REFERENCES department(department_id),
+                FOREIGN KEY (role_id) REFERENCES role(role_id)
+            )
+        """)
         
         # Documents table
         cursor.execute("""
@@ -41,13 +100,49 @@ class RAGDatabase:
             )
         """)
         
-        # Embeddings table
+        # Document RBAC mapping
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS document_rbac (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                doc_id TEXT NOT NULL,
+                company_id INTEGER,
+                department_id INTEGER,
+                role_id INTEGER,
+                access_level INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (doc_id) REFERENCES documents(doc_id),
+                FOREIGN KEY (company_id) REFERENCES company(company_id),
+                FOREIGN KEY (department_id) REFERENCES department(department_id),
+                FOREIGN KEY (role_id) REFERENCES role(role_id)
+            )
+        """)
+        
+        # Agent memory table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS agent_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agent_id TEXT NOT NULL,
+                agent_name TEXT NOT NULL,
+                memory_key TEXT NOT NULL,
+                memory_value TEXT NOT NULL,
+                memory_type TEXT NOT NULL,
+                content TEXT,
+                metadata TEXT,
+                expires_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Embeddings table (metadata tracking only - vectors stored in ChromaDB)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS embeddings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                doc_id TEXT NOT NULL,
-                embedding BLOB NOT NULL,
+                doc_id TEXT NOT NULL UNIQUE,
                 embedding_model TEXT NOT NULL,
+                embedding_dimension INTEGER,
+                vector_store TEXT NOT NULL,
+                sync_status TEXT DEFAULT 'synced',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (doc_id) REFERENCES documents(doc_id)
             )
@@ -62,6 +157,59 @@ class RAGDatabase:
                 value TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (doc_id) REFERENCES documents(doc_id)
+            )
+        """)
+        
+        # Agent spawn tracking (enriched with costs)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS agent_spawns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                parent_agent_id TEXT NOT NULL,
+                parent_agent_name TEXT NOT NULL,
+                child_agent_id TEXT NOT NULL,
+                child_agent_name TEXT NOT NULL,
+                task_description TEXT,
+                status TEXT NOT NULL,
+                input_data TEXT,
+                output_data TEXT,
+                error_message TEXT,
+                tokens_used INTEGER DEFAULT 0,
+                cost_cents DECIMAL(10, 4) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP
+            )
+        """)
+        
+        # Healing operations tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS healing_operations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_id TEXT UNIQUE NOT NULL,
+                operation_type TEXT NOT NULL,
+                target_agent TEXT,
+                status TEXT NOT NULL,
+                metrics TEXT,
+                issues_found INTEGER DEFAULT 0,
+                issues_fixed INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP
+            )
+        """)
+        
+        # Agent performance tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS agent_performance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agent_id TEXT NOT NULL,
+                agent_name TEXT NOT NULL,
+                query_id TEXT,
+                execution_time_ms INTEGER,
+                tokens_input INTEGER DEFAULT 0,
+                tokens_output INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                cost_cents DECIMAL(10, 4) DEFAULT 0,
+                quality_score DECIMAL(3, 2),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
@@ -81,102 +229,60 @@ class RAGDatabase:
             )
         """)
         
-        # Agent spawn history
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS agent_spawns (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                parent_agent TEXT NOT NULL,
-                child_agent TEXT NOT NULL,
-                task_description TEXT,
-                status TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP
-            )
-        """)
-        
-        # Query history
+        # Query history (enriched with cost tracking)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS query_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query_id TEXT UNIQUE NOT NULL,
                 query TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                user_role TEXT,
-                documents_retrieved INTEGER,
-                answer TEXT,
-                response_time REAL,
-                success BOOLEAN,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # System metrics
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS system_metrics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                metric_name TEXT NOT NULL,
-                metric_value REAL NOT NULL,
-                metric_type TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Healing operations
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS healing_operations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                operation_type TEXT NOT NULL,
-                target_doc_ids TEXT,
-                reason TEXT,
+                user_id INTEGER,
+                company_id INTEGER,
+                department_id INTEGER,
+                role_id INTEGER,
                 status TEXT NOT NULL,
-                results TEXT,
+                total_documents_found INTEGER,
+                documents_returned_after_rbac INTEGER,
+                answer_generated TEXT,
+                confidence DECIMAL(3, 2),
+                total_tokens_used INTEGER DEFAULT 0,
+                total_cost_cents DECIMAL(10, 4) DEFAULT 0,
+                execution_time_ms INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP
+                completed_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id),
+                FOREIGN KEY (company_id) REFERENCES company(company_id),
+                FOREIGN KEY (department_id) REFERENCES department(department_id),
+                FOREIGN KEY (role_id) REFERENCES role(role_id)
             )
         """)
         
-        # Incident knowledge table
+        # COT steps tracking
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS incident_knowledge (
+            CREATE TABLE IF NOT EXISTS cot_steps (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                platform TEXT,
-                incident_description TEXT,
-                incident_severity TEXT,
-                resource_type TEXT,
-                l1_triage TEXT,
-                l2_triage TEXT,
-                final_resolution TEXT,
-                impacted_dollar REAL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Agent memory/state table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS agent_memory (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query_id TEXT NOT NULL,
+                agent_id TEXT NOT NULL,
                 agent_name TEXT NOT NULL,
-                memory_key TEXT NOT NULL,
-                memory_value TEXT,
-                memory_type TEXT,
+                phase TEXT NOT NULL,
+                iteration INTEGER,
+                output TEXT,
+                score DECIMAL(3, 2),
+                tokens_used INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP
+                FOREIGN KEY (query_id) REFERENCES query_history(query_id)
             )
         """)
         
-        # LLM Memory/Context table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS llm_memory (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                doc_id TEXT,
-                context_type TEXT NOT NULL,
-                context_data TEXT NOT NULL,
-                model TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (doc_id) REFERENCES documents(doc_id)
-            )
-        """)
+        # Create indexes
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_document_rbac_doc_id ON document_rbac(doc_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_memory_agent_name ON agent_memory(agent_name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_spawns_parent ON agent_spawns(parent_agent_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_performance_agent ON agent_performance(agent_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_history_user ON query_history(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cot_steps_query ON cot_steps(query_id)")
         
         self.conn.commit()
+        print("[OK] All RBAC and tracking tables created")
     
     # ========================================================================
     # Document Operations
@@ -225,26 +331,50 @@ class RAGDatabase:
         return [dict(row) for row in cursor.fetchall()]
     
     # ========================================================================
-    # Embedding Operations
+    # Embedding Operations (Metadata Tracking Only - Vectors in ChromaDB)
     # ========================================================================
     
-    def insert_embedding(self, doc_id: str, embedding: List[float], model: str):
-        """Insert embedding for a document."""
+    def track_embedding(self, doc_id: str, embedding_model: str, 
+                       embedding_dimension: int = 384, 
+                       vector_store: str = "chromadb"):
+        """
+        Track that embedding exists in vector store.
+        
+        Args:
+            doc_id: Document ID
+            embedding_model: Model used (e.g., "all-MiniLM-L6-v2")
+            embedding_dimension: Embedding vector dimensions
+            vector_store: Vector store name (e.g., "chromadb")
+        """
         cursor = self.conn.cursor()
-        embedding_blob = json.dumps(embedding).encode('utf-8')
         cursor.execute("""
-            INSERT INTO embeddings (doc_id, embedding, embedding_model)
-            VALUES (?, ?, ?)
-        """, (doc_id, embedding_blob, model))
+            INSERT OR REPLACE INTO embeddings 
+            (doc_id, embedding_model, embedding_dimension, vector_store, sync_status)
+            VALUES (?, ?, ?, ?, 'synced')
+        """, (doc_id, embedding_model, embedding_dimension, vector_store))
         self.conn.commit()
     
-    def get_embedding(self, doc_id: str) -> Optional[List[float]]:
-        """Retrieve embedding for a document."""
+    def is_embedding_synced(self, doc_id: str) -> bool:
+        """Check if document embedding is synced to vector store."""
         cursor = self.conn.cursor()
-        cursor.execute("SELECT embedding FROM embeddings WHERE doc_id = ? ORDER BY created_at DESC LIMIT 1", (doc_id,))
+        cursor.execute(
+            "SELECT sync_status FROM embeddings WHERE doc_id = ?",
+            (doc_id,)
+        )
         row = cursor.fetchone()
         if row:
-            return json.loads(row["embedding"].decode('utf-8'))
+            return row["sync_status"] == "synced"
+        return False
+    
+    def get_embedding_metadata(self, doc_id: str) -> Optional[Dict[str, Any]]:
+        """Get embedding metadata (not vectors - those are in ChromaDB)."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT * FROM embeddings WHERE doc_id = ?",
+            (doc_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
         return None
     
     def get_documents_for_reembedding(self, classification: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -337,9 +467,9 @@ class RAGDatabase:
         """Log when an agent spawns another agent."""
         cursor = self.conn.cursor()
         cursor.execute("""
-            INSERT INTO agent_spawns (parent_agent, child_agent, task_description, status)
-            VALUES (?, ?, ?, ?)
-        """, (parent_agent, child_agent, task_description, status))
+            INSERT INTO agent_spawns (parent_agent_id, parent_agent_name, child_agent_id, child_agent_name, task_description, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (parent_agent, parent_agent, child_agent, child_agent, task_description, status))
         self.conn.commit()
         return cursor.lastrowid
     

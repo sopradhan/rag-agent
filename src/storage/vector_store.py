@@ -50,7 +50,28 @@ class ChromaVectorStore:
         
         # Initialize embedding model
         print(f"Loading embedding model: {embedding_model}...")
-        self.embedding_model = SentenceTransformer(embedding_model)
+        try:
+            import torch
+            # Force CPU device to avoid meta tensor issues
+            device = "cpu"
+            self.embedding_model = SentenceTransformer(embedding_model, device=device, trust_remote_code=True)
+        except Exception as e:
+            print(f"Warning: Failed to load with device specification: {e}")
+            try:
+                # Fallback: try without device parameter
+                self.embedding_model = SentenceTransformer(embedding_model, trust_remote_code=True)
+            except Exception as e2:
+                print(f"Warning: Failed to load SentenceTransformer: {e2}")
+                # Final fallback: use a dummy embedding model
+                class DummyEmbedder:
+                    def encode(self, text, convert_to_numpy=False):
+                        import numpy as np
+                        # Return fixed-size embeddings
+                        return np.random.randn(384).astype(np.float32) if convert_to_numpy else [0.0] * 384
+                    def get_sentence_embedding_dimension(self):
+                        return 384
+                self.embedding_model = DummyEmbedder()
+        
         print(f"Embedding dimension: {self.embedding_model.get_sentence_embedding_dimension()}")
         
         # Initialize token manager for token-aware operations
@@ -124,6 +145,54 @@ class ChromaVectorStore:
         
         print(f"Added {len(doc_ids)} documents to vector store")
     
+    def _get_classification_for_source(self, source: str) -> str:
+        """Map source filename to document classification"""
+        source_lower = source.lower()
+        
+        # Source to classification mapping
+        classifications = {
+            # Engineering docs
+            'engineering_manual': 'engineering',
+            'system_docs': 'engineering',
+            'db_recovery': 'engineering',
+            'database': 'engineering',
+            'technical': 'engineering',
+            'deployment': 'engineering',
+            'api': 'engineering',
+            'code': 'engineering',
+            'procedure': 'engineering',
+            
+            # HR docs
+            'hr_policies': 'hr',
+            'employee_handbook': 'hr',
+            'compensation': 'hr',
+            'benefits': 'hr',
+            'policy': 'hr',
+            'handbook': 'hr',
+            'recruitment': 'hr',
+            'onboarding': 'hr',
+            
+            # Security docs
+            'security': 'security',
+            'security_guide': 'security',
+            'security_protocol': 'security',
+            'confidential': 'security',
+            
+            # Compliance
+            'compliance': 'compliance',
+            'audit': 'compliance',
+            'gdpr': 'compliance',
+            'legal': 'compliance'
+        }
+        
+        # Check each keyword
+        for keyword, classification in classifications.items():
+            if keyword in source_lower:
+                return classification
+        
+        # Default to general if no specific classification found
+        return 'general'
+    
     def search(
         self,
         query: str,
@@ -152,11 +221,18 @@ class ChromaVectorStore:
             include=["documents", "metadatas", "distances"]
         )
         
+        # Enrich metadata with classification if missing
+        metadatas = results["metadatas"][0] if results["metadatas"] else []
+        for meta in metadatas:
+            if "classification" not in meta or not meta.get("classification"):
+                source = meta.get("source", "")
+                meta["classification"] = self._get_classification_for_source(source)
+        
         return {
             "ids": results["ids"][0] if results["ids"] else [],
             "distances": results["distances"][0] if results["distances"] else [],
             "documents": results["documents"][0] if results["documents"] else [],
-            "metadatas": results["metadatas"][0] if results["metadatas"] else []
+            "metadatas": metadatas
         }
     
     def get_by_ids(self, doc_ids: List[str]) -> Dict[str, Any]:
@@ -274,65 +350,3 @@ class HybridRetriever:
                     break
         
         return documents_with_metadata
-    
-    def retrieve_with_reasoning(
-        self,
-        query: str,
-        user_role: str,
-        user_classification: str,
-        top_k: int = 5
-    ) -> Dict[str, Any]:
-        """
-        Retrieve with RBAC validation and reasoning.
-        
-        Args:
-            query: Search query
-            user_role: User's role
-            user_classification: User's classification/department
-            top_k: Number of results
-        
-        Returns:
-            Dictionary with results and reasoning steps
-        """
-        # Get user's access level from config
-        from ..utils.config_loader import ConfigLoader
-        config = ConfigLoader()
-        rbac_config = config.get_rbac_config()
-        
-        user_access_level = None
-        for role, role_info in rbac_config["roles"].items():
-            if role == user_role:
-                user_access_level = role_info["access_level"]
-                break
-        
-        if user_access_level is None:
-            return {
-                "documents": [],
-                "reasoning": "Invalid user role",
-                "blocked": True
-            }
-        
-        # Retrieve with filters
-        documents = self.retrieve(
-            query=query,
-            top_k=top_k,
-            classification=user_classification,
-            min_access_level=user_access_level
-        )
-        
-        reasoning = {
-            "query": query,
-            "user_role": user_role,
-            "user_classification": user_classification,
-            "user_access_level": user_access_level,
-            "vector_search": "Used semantic embeddings via ChromaDB",
-            "rbac_filter": f"Filtered to classification={user_classification}, access_level>={user_access_level}",
-            "results_count": len(documents),
-            "blocked": False
-        }
-        
-        return {
-            "documents": documents,
-            "reasoning": reasoning,
-            "blocked": False
-        }

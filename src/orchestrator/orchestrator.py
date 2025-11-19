@@ -8,7 +8,10 @@ from typing import Dict, List, Any
 from datetime import datetime
 import json
 
-from langchain_community.chat_models import ChatOllama
+try:
+    from langchain_ollama import ChatOllama
+except ImportError:
+    from langchain_community.chat_models import ChatOllama
 
 from src.storage import RAGDatabase, ChromaVectorStore
 from src.subagents.langchain_subagents import (
@@ -67,7 +70,8 @@ class MasterOrchestrator:
             "user": {"id": user_id, "role": user_role, "access_level": access_level},
             "agents_executed": [],
             "results": {},
-            "status": "in_progress"
+            "status": "in_progress",
+            "agents_cot_logs": []
         }
         
         try:
@@ -75,6 +79,7 @@ class MasterOrchestrator:
             print("[STEP 1/5] [ANALYZER] - Query decomposition...")
             analysis_result = self.analyzer.execute(query)
             execution_log["agents_executed"].append("analyzer")
+            execution_log["agents_cot_logs"].extend(self.analyzer.execution_log)
             print(f"  [OK] Keywords: {analysis_result.get('keywords', [])}")
             print(f"  [OK] Intent: {analysis_result.get('intent')}")
             
@@ -83,6 +88,7 @@ class MasterOrchestrator:
             search_result = self.searcher.execute(query, top_k=5)
             documents = search_result.get("documents", [])
             execution_log["agents_executed"].append("searcher")
+            execution_log["agents_cot_logs"].extend(self.searcher.execution_log)
             print(f"  [OK] Found {len(documents)} documents")
             
             if not documents:
@@ -103,6 +109,7 @@ class MasterOrchestrator:
             filter_result = self.filter.execute(documents, access_level, user_role)
             filtered_docs = filter_result.get("documents", [])
             execution_log["agents_executed"].append("filter")
+            execution_log["agents_cot_logs"].extend(self.filter.execution_log)
             print(f"  [OK] Filtered to {len(filtered_docs)} documents")
             print(f"  [OK] Restricted: {filter_result.get('restricted_count', 0)}")
             
@@ -124,6 +131,7 @@ class MasterOrchestrator:
             ranking_result = self.ranker.execute(filtered_docs)
             ranked_docs = ranking_result.get("documents", [])
             execution_log["agents_executed"].append("ranker")
+            execution_log["agents_cot_logs"].extend(self.ranker.execution_log)
             top_score = ranking_result.get("top_score", 0)
             print(f"  [OK] Ranked {len(ranked_docs)} documents")
             print(f"  [OK] Top relevance: {top_score:.2f}")
@@ -132,6 +140,7 @@ class MasterOrchestrator:
             print("\n[STEP 5/5] [SYNTHESIZER] - Answer generation...")
             synthesis_result = self.synthesizer.execute(query, ranked_docs)
             execution_log["agents_executed"].append("synthesizer")
+            execution_log["agents_cot_logs"].extend(self.synthesizer.execution_log)
             answer = synthesis_result.get("answer", "")
             print(f"  [OK] Answer generated ({len(answer)} chars)")
             
@@ -181,6 +190,64 @@ class MasterOrchestrator:
         """Get recent execution history"""
         return self.execution_history[-limit:]
     
+    def route_command(self, 
+                     command: str, 
+                     database_name: str = None,
+                     table_name: str = None,
+                     **kwargs) -> Dict[str, Any]:
+        """
+        Route command to appropriate agent based on keyword
+        Keywords: ingest, retrieve, heal, query
+        """
+        command_lower = command.lower()
+        
+        # Determine intent from command
+        if any(kw in command_lower for kw in ["ingest", "upload", "load", "import"]):
+            return {
+                "intent": "ingest",
+                "agent": "IngestionAgent",
+                "database": database_name,
+                "table": table_name,
+                "params": kwargs
+            }
+        elif any(kw in command_lower for kw in ["retrieve", "search", "query", "find", "fetch"]):
+            return {
+                "intent": "retrieve",
+                "agent": "RetrievalAgent",
+                "query": command,
+                "database": database_name,
+                "table": table_name,
+                "params": kwargs
+            }
+        elif any(kw in command_lower for kw in ["heal", "optimize", "rebuild", "fix", "repair"]):
+            return {
+                "intent": "heal",
+                "agent": "HealingAgent",
+                "mode": kwargs.get("mode", "full"),
+                "database": database_name,
+                "table": table_name,
+                "params": kwargs
+            }
+        elif any(kw in command_lower for kw in ["embedding", "index", "vector"]):
+            return {
+                "intent": "heal",
+                "agent": "HealingAgent",
+                "mode": "embedding",
+                "database": database_name,
+                "table": table_name,
+                "params": kwargs
+            }
+        else:
+            # Default to retrieval
+            return {
+                "intent": "retrieve",
+                "agent": "RetrievalAgent",
+                "query": command,
+                "database": database_name,
+                "table": table_name,
+                "params": kwargs
+            }
+    
     def get_agent_stats(self) -> Dict[str, Any]:
         """Get statistics"""
         return {
@@ -192,12 +259,15 @@ class MasterOrchestrator:
     
     def dashboard_statistics(self) -> Dict[str, Any]:
         """Get dashboard statistics"""
-        stats = self.db.get_dashboard_statistics()
+        stats = self.db.get_dashboard_stats()
         return stats or {
             "total_documents": 0,
             "queries_24h": 0,
             "active_agents": 5,
-            "avg_response_time": 0
+            "avg_response_time": 0.0,
+            "success_rate": 100.0,
+            "agent_spawns_24h": 0,
+            "healing_ops_24h": 0
         }
     
     def get_agent_tree(self) -> Dict[str, Any]:

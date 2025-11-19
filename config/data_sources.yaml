@@ -28,8 +28,75 @@ data_sources:
     
   sqlite:
     enabled: true
-    connection_string_env: "SQLITE_DB_PATH"
-    query_mode: "table"  # "table" or "query"
+    description: "Ingest data from SQLite3 databases (knowledge base, business data)"
+    
+    # Connection configuration
+    connection_string_env: "SQLITE_DB_PATH"  # Environment variable for DB path
+    
+    # Ingestion modes
+    ingestion_modes:
+      table_based:
+        enabled: true
+        description: "Extract all data from specified tables"
+        # Tables to ingest (will extract all records)
+        tables_to_ingest:
+          - name: "knowledge_base"
+            text_columns: ["title", "content", "description"]  # Which columns contain text
+            metadata_columns: ["category", "source", "tags"]   # For document metadata
+            chunk_strategy: "per_record"  # or "combined" for merging records
+            
+          - name: "business_data"
+            text_columns: ["subject", "details"]
+            metadata_columns: ["department", "created_by"]
+            chunk_strategy: "per_record"
+            
+      query_based:
+        enabled: true
+        description: "Execute custom SQL queries to extract data"
+        # Custom queries for specific data extraction
+        queries:
+          - name: "active_incidents"
+            sql: "SELECT id, title, description FROM incidents WHERE status = 'open'"
+            text_columns: ["title", "description"]
+            metadata_columns: ["id"]
+            
+          - name: "product_catalog"
+            sql: "SELECT product_id, name, description, category FROM products"
+            text_columns: ["name", "description"]
+            metadata_columns: ["product_id", "category"]
+    
+    # Document generation from records
+    document_generation:
+      # How to combine columns into document text
+      format: "structured"  # "structured" or "csv"
+      
+      # Template for structured format
+      text_template: |
+        Title: {title}
+        Content: {content}
+        Category: {category}
+        
+      # Metadata extraction
+      metadata_mapping:
+        source: "sqlite_table"
+        classification: "general"  # Will be overridden per table config
+        min_access_level: 1
+        
+    # Chunking strategy for large text fields
+    chunking:
+      enabled: true
+      strategy: "semantic"  # "token_based" or "semantic"
+      chunk_size: 512
+      overlap: 50
+      
+    # Filtering
+    filtering:
+      enabled: true
+      exclude_patterns:
+        - "^temp_"  # Exclude temp tables
+        - "^_"      # Exclude internal tables
+      include_null_values: false
+      skip_empty_records: true
     
   json:
     enabled: true

@@ -26,6 +26,7 @@ except ImportError:
 from src.agents.deep_classifier import DeepClassifier, ClassificationResult
 from src.storage import RAGDatabase
 from src.storage.vector_store import ChromaVectorStore
+from src.subagents.sqlite_ingestion_subagent import SQLiteIngestionSubagent
 
 
 class PDFIngestionAgent:
@@ -537,6 +538,7 @@ class UnifiedIngestionAgent:
         self.deep_classifier = DeepClassifier() if use_deep_classifier else None
         self.db = RAGDatabase()
         self.vector_store = ChromaVectorStore(db_path='data/chroma_db')
+        self.sqlite_agent = SQLiteIngestionSubagent(self.db, self.vector_store)
     
     def ingest_file(self, file_path: str) -> List[str]:
         """
@@ -566,6 +568,97 @@ class UnifiedIngestionAgent:
         
         else:
             raise ValueError(f"Unsupported file type: {extension}")
+    
+    def ingest_from_sqlite(
+        self,
+        db_path: str,
+        table_name: str,
+        text_columns: List[str],
+        metadata_columns: Optional[List[str]] = None,
+        classification: str = "general",
+        min_access_level: int = 1
+    ) -> Dict[str, Any]:
+        """
+        Ingest data from SQLite database table.
+        
+        Args:
+            db_path: Path to SQLite database
+            table_name: Table to ingest
+            text_columns: Columns containing text content
+            metadata_columns: Columns for metadata extraction
+            classification: Document classification
+            min_access_level: RBAC minimum access level
+        
+        Returns:
+            Ingestion result with statistics
+        """
+        print(f"\n🗄️ Ingesting from SQLite table: {table_name}")
+        
+        result = self.sqlite_agent.ingest_from_table(
+            db_path=db_path,
+            table_name=table_name,
+            text_columns=text_columns,
+            metadata_columns=metadata_columns,
+            classification=classification,
+            min_access_level=min_access_level
+        )
+        
+        if result["status"] == "success":
+            print(f"   ✅ Ingestion successful!")
+            print(f"      Records: {result['records_processed']}")
+            print(f"      Documents: {result['documents_created']}")
+            print(f"      Errors: {result['errors']}")
+        else:
+            print(f"   ❌ Ingestion failed: {result.get('error', 'Unknown error')}")
+        
+        return result
+    
+    def ingest_from_sqlite_query(
+        self,
+        db_path: str,
+        query: str,
+        text_columns: List[str],
+        metadata_columns: Optional[List[str]] = None,
+        classification: str = "general",
+        min_access_level: int = 1,
+        query_name: str = "custom_query"
+    ) -> Dict[str, Any]:
+        """
+        Ingest data from custom SQLite query.
+        
+        Args:
+            db_path: Path to SQLite database
+            query: SQL query to execute
+            text_columns: Query result columns containing text
+            metadata_columns: Query result columns for metadata
+            classification: Document classification
+            min_access_level: RBAC minimum access level
+            query_name: Name for tracking
+        
+        Returns:
+            Ingestion result with statistics
+        """
+        print(f"\n🗄️ Ingesting from SQLite query: {query_name}")
+        
+        result = self.sqlite_agent.ingest_from_query(
+            db_path=db_path,
+            query=query,
+            text_columns=text_columns,
+            metadata_columns=metadata_columns,
+            classification=classification,
+            min_access_level=min_access_level,
+            query_name=query_name
+        )
+        
+        if result["status"] == "success":
+            print(f"   ✅ Ingestion successful!")
+            print(f"      Records: {result['records_processed']}")
+            print(f"      Documents: {result['documents_created']}")
+            print(f"      Errors: {result['errors']}")
+        else:
+            print(f"   ❌ Ingestion failed: {result.get('error', 'Unknown error')}")
+        
+        return result
     
     def ingest_directory(self, directory_path: str, recursive: bool = True,
                         file_extensions: Optional[List[str]] = None) -> Dict[str, List[str]]:

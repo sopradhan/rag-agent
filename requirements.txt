@@ -1,42 +1,76 @@
-# Core DeepAgents library from LangChain
-deepagents>=0.1.0
-langgraph>=0.2.0
+# RAG Agent System - Complete Dependencies
+# Python 3.10+
+# Installation: pip install -r requirements.txt
+
+# Core LLM & AI Framework
 langchain>=0.3.0
 langchain-core>=0.3.0
+langchain-community>=0.3.0
+langgraph>=0.2.0
+
+# LLM Providers
 langchain-openai>=0.2.0
 langchain-anthropic>=0.2.0
-langchain-community>=0.3.0
+ollama>=0.1.15
 
-# Configuration
-pyyaml>=6.0.1
-python-dotenv>=1.0.0
+# Vector Database & Embeddings
+chromadb>=0.4.0
+sentence-transformers>=2.2.2
+tiktoken>=0.5.0
 
-# Data processing
-pandas>=2.0.0
-openpyxl>=3.1.0
+# Document Processing
 PyPDF2>=3.0.0
 pdfplumber>=0.10.0
 python-docx>=1.0.0
+python-pptx>=0.6.21
+python-pptx>=0.6.21
 
-# Vector stores
-chromadb>=0.4.0
+# Data Processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+numpy>=1.24.0
 
-# Token counting and caching
-tiktoken>=0.5.0
+# Configuration & Utilities
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+click>=8.1.7
+rich>=13.7.0
 
-# Graph processing
-networkx>=3.0
+# Data Formats
+json-lines>=4.0.0
+xmltodict>=12.0.1
 
-# HuggingFace support
-huggingface-hub>=0.20.0
-sentence-transformers>=2.2.2
-transformers>=4.36.0
+# Text Processing
+nltk>=3.8.0
+textblob>=0.17.0
 
-# Dashboard and monitoring
+# Web & Dashboard
 streamlit>=1.29.0
+streamlit-option-menu>=0.3.6
 plotly>=5.18.0
 
-# Optional: Additional features
-# tavily-python>=0.5.0  # For web search
+# Graph Processing
+networkx>=3.0
+
+# HuggingFace
+huggingface-hub>=0.20.0
+transformers>=4.36.0
+
+# Logging & Monitoring
+python-json-logger>=2.0.7
+
+# Development & Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.11.0
+flake8>=6.1.0
+mypy>=1.7.0
+
+# Type Checking
+typing-extensions>=4.8.0
+
+# Optional: Web Search & Alternative Vector Stores
+# tavily-python>=0.5.0
 # pinecone-client>=2.2.0
 # qdrant-client>=1.7.0
+

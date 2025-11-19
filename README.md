@@ -12,30 +12,49 @@
 ✅ **Faithfulness Scoring** - Prevents hallucination with confidence levels  
 ✅ **Live Chat Interface** - Real-time testing with role/department selection  
 ✅ **Unified Database** - Single SQLite file for all operations  
+✅ **One-Command Setup** - Initialize entire system with `python initialize.py`  
+✅ **Enterprise Integration** - Easily embed into any project or system  
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (5 Minutes)
 
-### 1. Install Dependencies
+### 1. One-Command Installation
 
 ```bash
-pip install -r requirements.txt
+# This will:
+# - Install all dependencies (skip with --skip-dependencies)
+# - Create database with hierarchical RBAC
+# - Generate sample test data (TXT, JSON, CSV)
+# - Create .env configuration
+# - Verify installation
+
+python initialize.py
 ```
 
-### 2. Run Sample Demo
+### 2. Start Services
 
 ```bash
-python demo_incident.py
-```
+# Terminal 1: Start Ollama (LLM backend)
+ollama serve
 
-### 3. Launch Dashboard
-
-```bash
+# Terminal 2: Start Dashboard
 streamlit run dashboard.py
 ```
 
-Then go to **"Live Chat"**, select role and department, enable reasoning, and ask questions!
+### 3. Access Dashboard
+
+Open **http://localhost:8501** and start querying!
+
+---
+
+## 📖 Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [QUICKSTART.md](QUICKSTART.md) | 3-step quick start guide |
+| [INSTALLATION.md](INSTALLATION.md) | Detailed installation & integration guide |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design & components |
 
 ---
 

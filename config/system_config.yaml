@@ -146,7 +146,7 @@ database:
           type: TIMESTAMP
       indexes:
         - name: idx_spawns_parent
-          columns: [parent_agent]
+          columns: [parent_agent_id]
         - name: idx_spawns_status
           columns: [status]
     
