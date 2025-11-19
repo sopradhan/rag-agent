@@ -114,12 +114,12 @@ Contact HR for questions: hr@acmecorp.com
         
         # Check RBAC permissions
         perms = services['db'].query(
-            "SELECT * FROM document_permissions WHERE document_id = ?",
+            "SELECT * FROM document_permissions WHERE doc_id = ?",
             (doc['id'],)
         )
         print(f"\n✓ RBAC Permissions ({len(perms)} roles):")
         for perm in perms[:3]:  # Show first 3
-            print(f"  - CDR Code: {perm['cdr_code']}, Access: {perm['access_level']}")
+            print(f"  - CDR Code: {perm['cdr_code']}, Sensitivity: {perm.get('sensitivity', 'N/A')}")
         
         # Check vector database
         count = services['vectordb'].count()

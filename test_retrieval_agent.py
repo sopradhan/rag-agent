@@ -58,7 +58,7 @@ def test_retrieval_agent():
             (user_id, cdr_code, company_id, department_id, role_id)
             VALUES (?, ?, ?, ?, ?)
         """, (user_id, cdr_code, company_id, dept_id, role_id))
-        print(f"  ✓ {user_id} ({desc})")
+        print(f"  [OK] {user_id} ({desc})")
     
     # Create agent
     print("\n[4/4] Creating RetrievalAgent...")
@@ -68,11 +68,11 @@ def test_retrieval_agent():
     # Check if we have data
     doc_count = services['db'].query("SELECT COUNT(*) as count FROM documents")[0]['count']
     if doc_count == 0:
-        print("\n⚠️  WARNING: No documents in database!")
+        print("\n[WARNING] No documents in database!")
         print("Run test_ingestion_agent.py first to ingest test data")
         return
     
-    print(f"\n✓ Database has {doc_count} documents")
+    print(f"\n[OK] Database has {doc_count} documents")
     
     # Test 1: Query with full access (HR user)
     print("\n" + "=" * 80)
@@ -150,7 +150,7 @@ def test_retrieval_agent():
         print(f"  Chunks Retrieved: {result.get('chunks_retrieved', 0)}")
         print(f"  Chunks After RBAC: {result.get('chunks_after_rbac', 0)}")
     else:
-        print(f"  Status: DENIED ✓")
+        print(f"  Status: DENIED [OK]")
         print(f"  Error: {result.get('error', 'Unknown')}")
     
     # Test 4: Complex multi-step query
@@ -194,35 +194,35 @@ def test_retrieval_agent():
         LIMIT 5
     """)
     
-    print(f"\n✓ Recent Queries ({len(queries)}):")
+    print(f"\n[OK] Recent Queries ({len(queries)}):")
     for q in queries:
         print(f"  - User: {q['user_id']}")
         print(f"    Query: {q['query_text'][:50]}...")
         print(f"    Status: {q['status']}")
-        print(f"    Chunks: {q['num_chunks_retrieved']} → {q['num_chunks_filtered']} (after RBAC)")
+        print(f"    Chunks: {q['num_chunks_retrieved']} -> {q['num_chunks_filtered']} (after RBAC)")
         print()
     
     # Heatmap
     heatmap = services['db'].query("""
-        SELECT query_pattern, query_count, avg_accuracy
+        SELECT query_hash, query_example, frequency, avg_retrieval_accuracy
         FROM query_heatmap 
-        ORDER BY query_count DESC 
+        ORDER BY frequency DESC 
         LIMIT 3
     """)
     
     if heatmap:
-        print("✓ Query Heatmap (for REFRAG healing):")
+        print("[OK] Query Heatmap (for REFRAG healing):")
         for h in heatmap:
-            print(f"  - Pattern: {h['query_pattern']}")
-            print(f"    Count: {h['query_count']}, Avg Accuracy: {h.get('avg_accuracy', 0):.2f}")
+            print(f"  - Query: {h['query_example'][:50]}")
+            print(f"    Frequency: {h['frequency']}, Avg Accuracy: {h.get('avg_retrieval_accuracy', 0):.2f}")
     
     print("\n" + "=" * 80)
     print("RETRIEVAL AGENT TEST COMPLETE")
     print("=" * 80)
     print("\nDeepAgents Features Used:")
-    print("  ✓ write_todos - Query planning and decomposition")
-    print("  ✓ Custom tools - permission_check, vector_search, synthesize_answer")
-    print("  ✓ RBAC enforcement - Strict permission filtering")
+    print("  [OK] write_todos - Query planning and decomposition")
+    print("  [OK] Custom tools - permission_check, vector_search, synthesize_answer")
+    print("  [OK] RBAC enforcement - Strict permission filtering")
     print("\nNext: Run test_healing_agent.py")
     print("=" * 80)
 

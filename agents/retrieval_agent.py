@@ -51,58 +51,79 @@ class RetrievalAgent:
         )
         from tools.common_tools import get_system_status_tool, query_database_tool
         
+        # Capture services
+        db_service = self.services['db']
+        llm_service = self.services['llm']
+        vectordb_service = self.services['vectordb']
+        top_k = self.top_k
+        
         tools = [
             Tool(
                 name="permission_check",
                 description="Filter chunks based on user's RBAC permissions. Args: user_id (str), chunk_ids (list)",
-                func=lambda **kwargs: permission_check_tool(
-                    kwargs.get('user_id', ''), kwargs.get('chunk_ids', []), self.services['db']
-                )
+                func=lambda user_id='', chunk_ids=None, **kwargs: permission_check_tool(
+                    kwargs.get('user_id', user_id), 
+                    json.dumps(kwargs.get('chunk_ids', chunk_ids or [])), 
+                    db_service
+                ) if chunk_ids is not None or 'chunk_ids' in kwargs else "{\"error\": \"Missing chunk_ids\"}"
             ),
             
             Tool(
                 name="vector_search",
                 description="Search vector database for similar chunks. Args: query (str), top_k (int, optional)",
-                func=lambda **kwargs: vector_search_tool(
-                    kwargs.get('query', ''), kwargs.get('top_k', self.top_k),
-                    self.services['llm'],
-                    self.services['vectordb']
+                func=lambda query='', **kwargs: vector_search_tool(
+                    kwargs.get('query', query), 
+                    kwargs.get('top_k', top_k),
+                    llm_service,
+                    vectordb_service
                 )
             ),
             
             Tool(
                 name="rerank_results",
                 description="Rerank search results to improve relevance. Args: query (str), results (list), top_n (int, optional)",
-                func=lambda **kwargs: rerank_results_tool(kwargs.get('query', ''), kwargs.get('results', []), kwargs.get('top_n', 5))
+                func=lambda query='', results=None, **kwargs: rerank_results_tool(
+                    kwargs.get('query', query), 
+                    kwargs.get('results', results or []), 
+                    kwargs.get('top_n', 5)
+                )
             ),
             
             Tool(
                 name="synthesize_answer",
                 description="Generate final answer from retrieved chunks using LLM. Args: query (str), results (list)",
-                func=lambda **kwargs: synthesize_answer_tool(
-                    kwargs.get('query', ''), kwargs.get('results', []), self.services['llm']
+                func=lambda query='', results=None, **kwargs: synthesize_answer_tool(
+                    kwargs.get('query', query), 
+                    kwargs.get('results', results or []), 
+                    llm_service
                 )
             ),
             
             Tool(
                 name="graph_expand",
                 description="Expand context by finding related chunks. Args: results (list)",
-                func=lambda **kwargs: graph_expand_tool(kwargs.get('results', []), self.services['vectordb'])
+                func=lambda results=None, **kwargs: graph_expand_tool(
+                    kwargs.get('results', results or []), 
+                    vectordb_service
+                )
             ),
             
             Tool(
                 name="get_system_status",
                 description="Get current system status and statistics",
                 func=lambda **kwargs: get_system_status_tool(
-                    self.services['db'],
-                    self.services['vectordb']
+                    db_service,
+                    vectordb_service
                 )
             ),
             
             Tool(
                 name="query_database",
                 description="Execute SQL SELECT query. Args: sql (str)",
-                func=lambda **kwargs: query_database_tool(kwargs.get('sql', ''), self.services['db'])
+                func=lambda sql='', **kwargs: query_database_tool(
+                    kwargs.get('sql', sql), 
+                    db_service
+                )
             )
         ]
         
@@ -201,8 +222,16 @@ Remember: NEVER return information the user doesn't have permission to access.
             
             # Extract response
             messages = result.get('messages', [])
-            final_message = messages[-1] if messages else {}
-            response = final_message.get('content', 'No response')
+            final_message = messages[-1] if messages else None
+            
+            # Handle both dict and AIMessage objects
+            if final_message is None:
+                response = 'No response'
+            elif isinstance(final_message, dict):
+                response = final_message.get('content', 'No response')
+            else:
+                # Handle AIMessage or other message types
+                response = getattr(final_message, 'content', str(final_message))
             
             # Calculate execution time
             execution_time_ms = int((time.time() - start_time) * 1000)
