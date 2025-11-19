@@ -31,6 +31,37 @@ class VectorDBService:
         print(f"[VectorDBService] Collection '{collection_name}' ready")
         print(f"[VectorDBService] Current document count: {self.collection.count()}")
     
+    def add_documents(self, ids: List[str], metadatas: List[Dict], documents: List[str],
+                     embeddings: Optional[List[List[float]]] = None):
+        """
+        Add documents to vector database (with or without embeddings)
+        
+        Args:
+            ids: List of unique IDs for chunks
+            metadatas: List of metadata dicts
+            documents: List of text content
+            embeddings: Optional list of embedding vectors (if None, ChromaDB auto-embeds)
+        """
+        try:
+            if embeddings is not None:
+                self.collection.add(
+                    ids=ids,
+                    embeddings=embeddings,
+                    metadatas=metadatas,
+                    documents=documents
+                )
+            else:
+                # Let ChromaDB auto-embed the documents
+                self.collection.add(
+                    ids=ids,
+                    metadatas=metadatas,
+                    documents=documents
+                )
+            print(f"[VectorDB] Added {len(ids)} documents {'with' if embeddings else 'without'} embeddings")
+        except Exception as e:
+            print(f"[ERROR] Failed to add documents: {e}")
+            raise
+    
     def insert_embeddings(self, ids: List[str], embeddings: List[List[float]],
                          metadatas: List[Dict], documents: List[str]):
         """

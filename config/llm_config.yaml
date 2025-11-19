@@ -31,7 +31,8 @@ llm_providers:
   ollama:
     type: "ollama"
     base_url: "http://localhost:11434"
-    model: "qwen2.5:3b"
+    model: "qwen2.5:0.5b"  # Lightweight 1.9GB with tool calling
+    # When phi3:mini finishes downloading, switch to: "phi3:mini" (2.3GB, optimized)
     temperature: 0.3
     enabled: true
     

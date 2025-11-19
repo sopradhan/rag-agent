@@ -134,7 +134,7 @@ Healing Strategies:
 4. **update_embeddings**: Re-embed with better models if available
 
 Workflow for healing cycle:
-1. Use write_todos to plan comprehensive analysis
+1. Use write_todos with a list of steps to plan comprehensive analysis: write_todos(["Analyze heatmap", "Detect low-quality chunks", "Spawn optimization subagents", "Measure improvements"])
 2. Analyze heatmap to identify issues:
    - Cold spots: Low query frequency
    - Poor quality: Low user feedback (<3.0)
@@ -184,7 +184,7 @@ Run a comprehensive healing cycle to optimize the RAG system.
 Requested strategies: {', '.join(strategies)}
 
 Your healing plan:
-1. Use write_todos to plan the healing workflow
+1. Use write_todos with a list of steps to plan the healing workflow: write_todos(["Get baseline", "Analyze heatmap", "Detect issues", "Apply optimizations", "Measure improvement"])
 2. Get current system status as baseline
 3. Analyze query heatmap for issues
 4. Detect low-quality embeddings (threshold: 0.5)

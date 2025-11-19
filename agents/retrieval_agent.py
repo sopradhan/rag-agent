@@ -115,7 +115,8 @@ class RetrievalAgent:
 Your responsibilities:
 1. Process user queries and retrieve relevant information
 2. Enforce RBAC permissions strictly - never leak restricted information
-3. Use write_todos to plan complex multi-hop queries
+3. Use write_todos with a list of steps to plan complex multi-hop queries
+   Example: write_todos(["Search vector db", "Check permissions", "Rerank results", "Synthesize answer"])
 4. Provide accurate answers with source citations
 5. Log query metadata for system improvement
 
@@ -146,7 +147,7 @@ Workflow for standard queries:
 7. Cite sources clearly
 
 For complex queries:
-1. Use write_todos to break down into steps
+1. Use write_todos with a list of steps to break down into steps, example: ["Analyze query", "Search vector db", "Filter by permissions", "Rerank", "Synthesize"]
 2. Consider spawning specialized subagents with task tool
 3. Combine results from multiple searches if needed
 
@@ -171,7 +172,7 @@ Never make up information - only use retrieved context.
         
         try:
             # Create request for agent
-            planning_note = "\nUse write_todos to plan your approach." if use_planning else ""
+            planning_note = "\nUse write_todos with a list of steps to plan your approach: write_todos(['Step 1', 'Step 2', ...])" if use_planning else ""
             
             request = f"""
 Process this query with strict RBAC enforcement:
