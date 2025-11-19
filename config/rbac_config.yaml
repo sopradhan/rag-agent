@@ -1,0 +1,497 @@
+# RBAC Configuration for Autonomous Agentic RAG
+# Uses CDR (Company-Department-Role) encoding system
+# Format: 3-digit code where C=Company, D=Department, R=Role/Access Level
+
+# Role Mappings - CDR Code Definitions
+role_mappings:
+  # Company 1 (Acme Corp) - Digit 1
+  "111": # Company 1, General, Public
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 1
+    department_name: "General"
+    role_id: 1
+    role_name: "Public Access"
+    access_level: 1
+    can_access:
+      - "public"
+    
+  "112": # Company 1, HR, Associate
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 1
+    department_name: "HR"
+    role_id: 2
+    role_name: "Associate"
+    access_level: 2
+    can_access:
+      - "public"
+      - "internal_hr"
+      - "company_handbook"
+    
+  "113": # Company 1, HR, Senior
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 1
+    department_name: "HR"
+    role_id: 3
+    role_name: "Senior Associate"
+    access_level: 3
+    can_access:
+      - "public"
+      - "internal_hr"
+      - "company_handbook"
+      - "confidential_hr"
+      - "employee_records"
+    
+  "114": # Company 1, HR, Manager
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 1
+    department_name: "HR"
+    role_id: 4
+    role_name: "Manager"
+    access_level: 4
+    can_access:
+      - "public"
+      - "internal_hr"
+      - "company_handbook"
+      - "confidential_hr"
+      - "employee_records"
+      - "salary_data"
+      - "termination_records"
+  
+  "121": # Company 1, Engineering, Associate
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 2
+    department_name: "Engineering"
+    role_id: 1
+    role_name: "Engineer I"
+    access_level: 2
+    can_access:
+      - "public"
+      - "internal_engineering"
+      - "technical_docs"
+      - "api_docs"
+  
+  "122": # Company 1, Engineering, Senior
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 2
+    department_name: "Engineering"
+    role_id: 2
+    role_name: "Senior Engineer"
+    access_level: 3
+    can_access:
+      - "public"
+      - "internal_engineering"
+      - "technical_docs"
+      - "api_docs"
+      - "architecture_specs"
+      - "confidential_engineering"
+  
+  "123": # Company 1, Engineering, Manager
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 2
+    department_name: "Engineering"
+    role_id: 3
+    role_name: "Engineering Manager"
+    access_level: 4
+    can_access:
+      - "public"
+      - "internal_engineering"
+      - "technical_docs"
+      - "api_docs"
+      - "architecture_specs"
+      - "confidential_engineering"
+      - "system_credentials"
+      - "security_reports"
+  
+  "124": # Company 1, Engineering, Director
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 2
+    department_name: "Engineering"
+    role_id: 4
+    role_name: "Director of Engineering"
+    access_level: 5
+    can_access:
+      - "public"
+      - "internal_engineering"
+      - "technical_docs"
+      - "api_docs"
+      - "architecture_specs"
+      - "confidential_engineering"
+      - "system_credentials"
+      - "security_reports"
+      - "strategic_roadmap"
+      - "budget_data"
+  
+  "131": # Company 1, Finance, Associate
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 3
+    department_name: "Finance"
+    role_id: 1
+    role_name: "Financial Analyst"
+    access_level: 2
+    can_access:
+      - "public"
+      - "internal_finance"
+      - "expense_reports"
+  
+  "132": # Company 1, Finance, Senior
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 3
+    department_name: "Finance"
+    role_id: 2
+    role_name: "Senior Financial Analyst"
+    access_level: 3
+    can_access:
+      - "public"
+      - "internal_finance"
+      - "expense_reports"
+      - "revenue_data"
+      - "confidential_finance"
+  
+  "133": # Company 1, Finance, Manager
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 3
+    department_name: "Finance"
+    role_id: 3
+    role_name: "Finance Manager"
+    access_level: 4
+    can_access:
+      - "public"
+      - "internal_finance"
+      - "expense_reports"
+      - "revenue_data"
+      - "confidential_finance"
+      - "payroll_data"
+      - "tax_documents"
+  
+  "141": # Company 1, Legal, Associate
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 4
+    department_name: "Legal"
+    role_id: 1
+    role_name: "Legal Analyst"
+    access_level: 3
+    can_access:
+      - "public"
+      - "internal_legal"
+      - "contracts"
+      - "compliance_docs"
+  
+  "142": # Company 1, Legal, Senior
+    company_id: 1
+    company_name: "Acme Corp"
+    department_id: 4
+    department_name: "Legal"
+    role_id: 2
+    role_name: "Senior Legal Counsel"
+    access_level: 4
+    can_access:
+      - "public"
+      - "internal_legal"
+      - "contracts"
+      - "compliance_docs"
+      - "legal_strategy"
+      - "litigation_records"
+      - "confidential_legal"
+  
+  # Company 2 (TechCo) - Digit 2
+  "211": # Company 2, General, Public
+    company_id: 2
+    company_name: "TechCo"
+    department_id: 1
+    department_name: "General"
+    role_id: 1
+    role_name: "Public Access"
+    access_level: 1
+    can_access:
+      - "public"
+  
+  "221": # Company 2, Engineering, Developer
+    company_id: 2
+    company_name: "TechCo"
+    department_id: 2
+    department_name: "Engineering"
+    role_id: 1
+    role_name: "Software Developer"
+    access_level: 2
+    can_access:
+      - "public"
+      - "internal_engineering"
+      - "code_repos"
+      - "api_docs"
+  
+  "231": # Company 2, Finance, Manager
+    company_id: 2
+    company_name: "TechCo"
+    department_id: 3
+    department_name: "Finance"
+    role_id: 1
+    role_name: "Finance Manager"
+    access_level: 4
+    can_access:
+      - "public"
+      - "internal_finance"
+      - "revenue_data"
+      - "confidential_finance"
+      - "investor_reports"
+
+# Subject Area Classifications
+# Used by LLM to categorize documents
+subject_areas:
+  engineering:
+    keywords:
+      - "API"
+      - "architecture"
+      - "code"
+      - "deployment"
+      - "infrastructure"
+      - "technical"
+      - "system"
+      - "database"
+      - "endpoint"
+      - "authentication"
+    default_departments: [2]  # Engineering department ID
+    
+  hr:
+    keywords:
+      - "employee"
+      - "policy"
+      - "handbook"
+      - "benefits"
+      - "compensation"
+      - "performance"
+      - "hiring"
+      - "termination"
+      - "payroll"
+      - "vacation"
+    default_departments: [1]  # HR department ID
+    
+  finance:
+    keywords:
+      - "revenue"
+      - "expense"
+      - "budget"
+      - "financial"
+      - "accounting"
+      - "invoice"
+      - "payment"
+      - "tax"
+      - "audit"
+      - "profit"
+    default_departments: [3]  # Finance department ID
+    
+  legal:
+    keywords:
+      - "contract"
+      - "agreement"
+      - "compliance"
+      - "regulation"
+      - "litigation"
+      - "trademark"
+      - "patent"
+      - "copyright"
+      - "terms"
+      - "liability"
+    default_departments: [4]  # Legal department ID
+    
+  general:
+    keywords:
+      - "overview"
+      - "about"
+      - "mission"
+      - "vision"
+      - "values"
+      - "company"
+      - "culture"
+    default_departments: [1]  # General access
+
+# Sensitivity Level Definitions
+sensitivity_levels:
+  public:
+    level: 1
+    description: "Publicly available information"
+    min_role_id: 1
+    examples:
+      - "Company mission statement"
+      - "Public product documentation"
+      - "Blog posts"
+    
+  internal:
+    level: 2
+    description: "Internal company information"
+    min_role_id: 2
+    examples:
+      - "Internal wikis"
+      - "Department procedures"
+      - "Meeting notes"
+    
+  confidential:
+    level: 3
+    description: "Confidential business information"
+    min_role_id: 3
+    examples:
+      - "Financial reports"
+      - "Strategic plans"
+      - "Employee records"
+      - "Customer data"
+    
+  legal:
+    level: 4
+    description: "Legally protected information"
+    min_role_id: 3
+    examples:
+      - "Contracts"
+      - "Litigation documents"
+      - "Compliance records"
+    
+  highly_confidential:
+    level: 5
+    description: "Highly sensitive information"
+    min_role_id: 4
+    examples:
+      - "Executive compensation"
+      - "M&A documents"
+      - "Trade secrets"
+      - "Security credentials"
+
+# LLM Classification Prompts
+classification_prompts:
+  subject_classification: |
+    Analyze the following document excerpt and determine its primary subject area.
+    
+    Choose from:
+    - engineering: Technical documentation, APIs, architecture, code
+    - hr: Employee policies, benefits, hiring, personnel
+    - finance: Budget, revenue, expenses, accounting
+    - legal: Contracts, compliance, regulations, litigation
+    - general: Company overview, mission, culture
+    
+    Document excerpt:
+    {text}
+    
+    Respond with JSON:
+    {{
+      "subject": "<subject_area>",
+      "confidence": <0.0-1.0>,
+      "reasoning": "<brief explanation>",
+      "keywords_found": ["<keyword1>", "<keyword2>"]
+    }}
+  
+  sensitivity_classification: |
+    Analyze the following document excerpt and determine its sensitivity level.
+    
+    Sensitivity levels:
+    - public: No sensitive information, can be shared externally
+    - internal: Internal company use only, not for external sharing
+    - confidential: Sensitive business information, restricted access
+    - legal: Legally protected, requires special access
+    - highly_confidential: Extremely sensitive, executive/leadership only
+    
+    Document excerpt:
+    {text}
+    
+    Respond with JSON:
+    {{
+      "sensitivity": "<level>",
+      "confidence": <0.0-1.0>,
+      "reasoning": "<brief explanation>",
+      "indicators": ["<indicator1>", "<indicator2>"]
+    }}
+  
+  role_requirement: |
+    Based on the subject area and sensitivity level, determine the minimum role required to access this document.
+    
+    Subject: {subject}
+    Sensitivity: {sensitivity}
+    
+    Role hierarchy (by access_level):
+    1 - Public/Associate (basic access)
+    2 - Associate (internal access)
+    3 - Senior (confidential access)
+    4 - Manager (highly confidential access)
+    5 - Director/Executive (all access)
+    
+    Respond with JSON:
+    {{
+      "min_role_id": <1-5>,
+      "recommended_departments": [<dept_ids>],
+      "reasoning": "<brief explanation>"
+    }}
+
+# Access Control Rules
+access_rules:
+  # Default access patterns
+  default_access:
+    public: [1, 2, 3, 4, 5]  # All role levels can access public
+    internal: [2, 3, 4, 5]   # Associate and above
+    confidential: [3, 4, 5]  # Senior and above
+    legal: [3, 4, 5]         # Senior and above
+    highly_confidential: [4, 5]  # Manager and above
+  
+  # Cross-department access exceptions
+  # Format: {from_dept: {to_dept: [allowed_role_ids]}}
+  cross_department:
+    4:  # Legal department
+      1: [3, 4]  # Can access HR with Senior+ role
+      2: [3, 4]  # Can access Engineering with Senior+ role
+      3: [3, 4]  # Can access Finance with Senior+ role
+    
+    5:  # Executive
+      1: [4, 5]  # Can access all departments
+      2: [4, 5]
+      3: [4, 5]
+      4: [4, 5]
+  
+  # Special access patterns
+  special_access:
+    salary_data:
+      required_departments: [1, 3]  # HR or Finance
+      min_role_id: 4  # Manager and above
+    
+    system_credentials:
+      required_departments: [2]  # Engineering only
+      min_role_id: 3  # Senior and above
+    
+    contracts:
+      required_departments: [4, 5]  # Legal or Executive
+      min_role_id: 3
+
+# Audit Configuration
+audit:
+  log_access_attempts: true
+  log_denied_access: true
+  retention_days: 365
+  alert_on_violations: true
+  alert_threshold: 5  # Alert after 5 denied attempts
+
+# RBAC Agent Behavior
+agent_config:
+  # During ingestion
+  ingestion:
+    auto_classify: true
+    confidence_threshold: 0.7  # Require 70% confidence in LLM classification
+    fallback_sensitivity: "internal"  # Default if uncertain
+    human_review_required: false
+    
+  # During retrieval
+  retrieval:
+    strict_mode: true  # Deny access if any doubt
+    cache_permissions: true
+    cache_ttl_seconds: 300
+    log_all_checks: true
+    
+  # Permission inheritance
+  inheritance:
+    higher_roles_inherit: true  # Manager can access Associate-level docs
+    same_company_only: true  # Cross-company access disabled by default

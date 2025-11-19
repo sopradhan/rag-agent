@@ -8,7 +8,7 @@ llm_providers:
     model: "gpt-4"
     temperature: 0.7
     max_tokens: 2000
-    enabled: true
+    enabled: false
     
   anthropic:
     type: "anthropic"
@@ -22,29 +22,29 @@ llm_providers:
     type: "azure_openai"
     api_key_env: "AZURE_OPENAI_API_KEY"
     endpoint_env: "AZURE_OPENAI_ENDPOINT"
-    deployment_name: "gpt-4"
-    api_version: "2023-05-15"
+    deployment_name: "gpt-4o-mini"  # Lite model for hackathon
+    api_version: "2024-08-01-preview"  # Latest version with tool calling
     temperature: 0.7
     max_tokens: 2000
-    enabled: false
+    enabled: false  # Set to true when you get the key at hackathon
     
   ollama:
     type: "ollama"
     base_url: "http://localhost:11434"
-    model: "llama2"
-    temperature: 0.7
+    model: "qwen2.5:3b"
+    temperature: 0.3
     enabled: true
     
   huggingface:
     type: "huggingface"
-    api_key_env: "HUGGINGFACE_API_TOKEN"
-    model: "google/flan-t5-large"
+    api_key_env: "HUGGINGFACE_API_KEY"  # Set in .env file
+    model: "meta-llama/Llama-3.3-70B-Instruct"
     temperature: 0.7
-    max_tokens: 512
+    max_tokens: 1024
     enabled: false
 
 # Default provider to use
-default_provider: "openai"
+default_provider: "ollama"
 
 # Embedding configuration
 embedding_providers:
@@ -52,17 +52,31 @@ embedding_providers:
     type: "openai"
     api_key_env: "OPENAI_API_KEY"
     model: "text-embedding-3-small"
-    enabled: true
+    enabled: false
+    
+  azure_openai:
+    type: "azure_openai"
+    api_key_env: "AZURE_OPENAI_API_KEY"
+    endpoint_env: "AZURE_OPENAI_ENDPOINT"
+    deployment_name: "text-embedding-3-small"  # Azure embedding deployment
+    api_version: "2024-08-01-preview"
+    enabled: false  # Set to true if using Azure for embeddings
     
   sentence_transformers:
     type: "sentence_transformers"
     model: "all-MiniLM-L6-v2"
-    enabled: false
+    enabled: true
     
   huggingface:
     type: "huggingface"
-    api_key_env: "HUGGINGFACE_API_TOKEN"
+    api_key_env: "HUGGINGFACE_API_KEY"  # Set in .env file
     model: "sentence-transformers/all-mpnet-base-v2"
     enabled: false
+    
+  ollama:
+    type: "ollama"
+    base_url: "http://localhost:11434"
+    model: "nomic-embed-text"
+    enabled: false
 
-default_embedding_provider: "openai"
+default_embedding_provider: "sentence_transformers"
