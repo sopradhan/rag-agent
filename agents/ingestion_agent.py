@@ -9,6 +9,7 @@ from pathlib import Path
 from deepagents import create_deep_agent
 from langchain_core.tools import tool
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from core.config.loader import load_all_configs
 
 
 class IngestionAgent:
@@ -26,17 +27,23 @@ class IngestionAgent:
         self.config = config
         self.name = config.get('name', 'IngestionAgent')
         
+        # Load configuration with system prompts
+        try:
+            self.prompts_config = load_all_configs('config').get('prompts', {})
+        except:
+            self.prompts_config = {}
+        
         # Create tools with service bindings
         self.tools = self._create_tools()
         
-        # Create DeepAgent
+        # Create DeepAgent with system prompt from config
         self.agent = create_deep_agent(
             tools=self.tools,
             system_prompt=self._get_system_prompt(),
             model=services['llm'].get_model()
         )
         
-        print(f"[{self.name}] Initialized with {len(self.tools)} tools")
+        print(f"[{self.name}] Initialized with {len(self.tools)} tools (prompts from config)")
     
     def _create_tools(self):
         """Create the single ingestion tool with complete 5-step workflow"""
@@ -270,19 +277,19 @@ Respond ONLY with JSON:
         return [ingest_document_from_file]
     
     def _get_system_prompt(self) -> str:
-        """Get system prompt for IngestionAgent"""
-        return """You are a document ingestion agent. Your ONLY job:
+        """Get system prompt for IngestionAgent from config"""
+        # Try to get from config first
+        if self.prompts_config.get('ingestion_agent', {}).get('system_prompt'):
+            return self.prompts_config['ingestion_agent']['system_prompt']
+        
+        # Fallback prompt
+        return """You are a document ingestion agent. Your job:
 
-1. User gives you doc_id and file_path
-2. You IMMEDIATELY call: ingest_document_from_file(doc_id, file_path)
-3. You report the results
+1. User provides doc_id and file_path
+2. Call: ingest_document_from_file(doc_id, file_path)
+3. Report results
 
-DO NOT ask questions. DO NOT delay. CALL THE TOOL NOW.
-
-You have ONE tool available:
-- ingest_document_from_file(doc_id: string, file_path: string)
-
-That's it. Simple. Fast. Done.
+DO NOT delay. CALL THE TOOL NOW.
 """
     
     def ingest_document(self, file_path: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:

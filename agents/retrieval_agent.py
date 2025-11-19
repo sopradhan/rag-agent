@@ -9,6 +9,7 @@ import time
 from typing import Dict, Any, Optional
 from deepagents import create_deep_agent
 from langchain_core.tools import Tool
+from core.config.loader import load_all_configs
 
 
 class RetrievalAgent:
@@ -28,17 +29,23 @@ class RetrievalAgent:
         self.top_k = config.get('top_k', 10)
         self.similarity_threshold = config.get('similarity_threshold', 0.75)
         
+        # Load configuration with system prompts
+        try:
+            self.prompts_config = load_all_configs('config').get('prompts', {})
+        except:
+            self.prompts_config = {}
+        
         # Create tools
         self.tools = self._create_tools()
         
-        # Create DeepAgent
+        # Create DeepAgent with system prompt from config
         self.agent = create_deep_agent(
             tools=self.tools,
             system_prompt=self._get_system_prompt(),
             model=services['llm'].get_model()
         )
         
-        print(f"[{self.name}] Initialized with {len(self.tools)} tools")
+        print(f"[{self.name}] Initialized with {len(self.tools)} tools (prompts from config)")
     
     def _create_tools(self):
         """Create retrieval tools with service bindings"""
@@ -145,132 +152,35 @@ class RetrievalAgent:
         return tools
     
     def _get_system_prompt(self) -> str:
-        """Get system prompt for RetrievalAgent"""
-        return """You are an autonomous retrieval agent for a RAG system with strict RBAC enforcement.
+        """Get system prompt for RetrievalAgent from config"""
+        # Try to get from config first
+        if self.prompts_config.get('retrieval_agent', {}).get('system_prompt'):
+            return self.prompts_config['retrieval_agent']['system_prompt']
+        
+        # Fallback to hardcoded prompt
+        return self.prompts_config.get('retrieval_agent', {}).get('system_prompt', """You are an autonomous retrieval agent for a RAG system with strict RBAC enforcement.
 
 === CORE RESPONSIBILITIES ===
 1. Process user queries and retrieve relevant information
 2. Enforce RBAC permissions STRICTLY - never leak restricted information  
 3. Provide transparent reasoning about RBAC tag decisions
 4. Show thought process for relevance assessment
-5. Log all access attempts for compliance
-
-=== RBAC TAG SYSTEM (Company-Department-Role) ===
-CDR Code Format: [Company][Department][Role] (e.g., "113" = Company 1, Department 1, Role 3)
-
-Tag Information to Report:
-- Document's required CDR codes (access control tags)
-- User's assigned CDR codes
-- Whether intersection exists (grants access)
-- Sensitivity level: public, internal, confidential, secret
-- Subject area: hr, finance, engineering, general, etc
-- Assigned by: ingestion_agent or admin
-
-Example:
-  Doc CDR Tags: [131, 132, 133, 231]
-  User CDR Tags: [132]
-  Access: GRANTED (user has 132, doc allows 131/132/133/231)
-  Sensitivity: confidential
-  Subject: HR
-
-=== EMBEDDING & SEARCH DETAILS ===
-Embeddings stored in ChromaDB:
-- Model: sentence-transformers/all-MiniLM-L6-v2 (384 dimensions)
-- Contains: chunk text + metadata (keywords, topics, RBAC tags)
-- Search returns: chunk IDs, similarity scores, metadata
-
-Before returning ANY chunk:
-1. Verify user has matching CDR code
-2. Check sensitivity level matches user role
-3. Report RBAC decision in response
-
-=== RESPONSE FORMAT ===
-Your response MUST include:
-
-[THOUGHT PROCESS]
-- Steps taken to search and filter
-- RBAC tag analysis for each result
-- Relevance assessment logic
-- Any permission denials explained
-
-[RESULTS]
-- Only show chunks user can access
-- Include RBAC tags and sensitivity
-- Cite source chunk IDs
-- Report retrieval accuracy
-
-[RBAC REPORT]
-- Total chunks retrieved: X
-- Chunks granted access: X (Y%)
-- Chunks denied access: X (reason: ...)
-- User CDR codes: [...]
-- Document CDR requirements: [...]
 
 === AVAILABLE TOOLS ===
 - vector_search: Search embeddings (top K similar chunks)
 - permission_check: Filter by RBAC tags
 - rerank_results: Improve relevance ranking
 - synthesize_answer: Generate final answer
-- graph_expand: Find related chunks
-- get_system_status: System health
-- query_database: SQL metadata queries
 
 === STRICT WORKFLOW ===
-1. Search vector DB: vector_search(query=<>, top_k={self.top_k})
-2. Extract chunk IDs from results
-3. Check permissions: permission_check(user_id=<>, chunk_ids=[...])
-4. Report RBAC analysis
-5. Rerank allowed chunks: rerank_results(query=<>, results=[...])
-6. Synthesize answer: synthesize_answer(query=<>, results=[...])
-7. Include RBAC report in final answer
+1. Search vector DB
+2. Check permissions
+3. Rerank allowed chunks
+4. Synthesize answer
+5. Report RBAC analysis
 
-=== COMPLIANCE RULES ===
-CRITICAL: These rules are non-negotiable
-- NEVER bypass RBAC checks
-- NEVER return denied chunks
-- ALWAYS show permission reasoning
-- ALWAYS report access denials
-- Log suspicious access patterns
-- Timestamp all operations
-
-If user has NO permissions for any matching documents:
-Return: "Access Denied: You do not have permissions to access documents matching this query."
-Include: Your CDR codes, required CDR codes, and reason for denial
-
-=== TRANSPARENCY ===
-Always show:
-1. What was searched
-2. What was found
-3. What was filtered (and why)
-4. What is being returned
-5. RBAC tag analysis
-6. Relevance scores
-7. Any confidence issues
-
-Example Response:
----
-[THOUGHT PROCESS]
-- Searched for "vacation policy" 
-- Found 5 chunks (HR documents)
-- User CDR: [112], Docs require: [131,132,133]
-- No intersection found
-- All results denied due to insufficient HR role level
-
-[RBAC REPORT]
-- Total retrieved: 5
-- Access granted: 0 (0%)
-- Access denied: 5 (100%)
-- Reason: User CDR 112 (HR Associate) cannot access CDR tags [131,132,133]
-- Recommendation: Request HR Manager or higher role
-
-[RESULT]
-Access Denied: Insufficient permissions
-Your CDR: HR Associate (112)
-Required CDR: HR Manager/Director (131,132,133)
----
-
-Show thoughtful RBAC analysis in every response.
-"""
+NEVER bypass RBAC checks.
+""")
     
     def process_query(self, query: str, user_id: str, 
                      use_planning: bool = False) -> Dict[str, Any]:
@@ -360,28 +270,13 @@ Remember: NEVER return information the user doesn't have permission to access.
                 VALUES (?, ?, 'retrieval', ?, ?, 'completed')
             """, (user_id, query, response, execution_time_ms))
             
-            # Check if response time is too slow - trigger healing if needed
-            slow_threshold_ms = 10000  # 10 seconds
-            if execution_time_ms > slow_threshold_ms:
-                print(f"[{self.name}] Slow response detected ({execution_time_ms}ms > {slow_threshold_ms}ms)")
-                print(f"[{self.name}] Triggering HealingAgent for optimization...")
-                try:
-                    # Lazy import to avoid circular imports
-                    from .healing_agent import HealingAgent
-                    healing_agent = HealingAgent(self.services, {})
-                    healing_result = healing_agent.run_healing_cycle()
-                    print(f"[{self.name}] HealingAgent optimization completed")
-                except Exception as heal_error:
-                    print(f"[{self.name}] HealingAgent error: {str(heal_error)}")
-            
             return {
                 "success": True,
                 "query": query,
                 "user_id": user_id,
                 "answer": response,
                 "execution_time_ms": execution_time_ms,
-                "messages": len(messages),
-                "slow_response": execution_time_ms > slow_threshold_ms
+                "messages": len(messages)
             }
             
         except Exception as e:

@@ -8,6 +8,7 @@ import time
 from typing import Dict, Any, List
 from deepagents import create_deep_agent
 from langchain_core.tools import Tool
+from core.config.loader import load_all_configs
 
 
 class HealingAgent:
@@ -26,17 +27,23 @@ class HealingAgent:
         self.name = config.get('name', 'HealingAgent')
         self.auto_optimize = config.get('auto_optimize', True)
         
+        # Load configuration with system prompts
+        try:
+            self.prompts_config = load_all_configs('config').get('prompts', {})
+        except:
+            self.prompts_config = {}
+        
         # Create tools
         self.tools = self._create_tools()
         
-        # Create DeepAgent
+        # Create DeepAgent with system prompt from config
         self.agent = create_deep_agent(
             tools=self.tools,
             system_prompt=self._get_system_prompt(),
             model=services['llm'].get_model()
         )
         
-        print(f"[{self.name}] Initialized with {len(self.tools)} tools")
+        print(f"[{self.name}] Initialized with {len(self.tools)} tools (prompts from config)")
     
     def _create_tools(self):
         """Create healing tools with service bindings"""
@@ -107,52 +114,28 @@ class HealingAgent:
         return tools
     
     def _get_system_prompt(self) -> str:
-        """Get system prompt for HealingAgent"""
-        return """You are an autonomous system healing agent for a RAG system (REFRAG).
+        """Get system prompt for HealingAgent from config"""
+        # Try to get from config first
+        if self.prompts_config.get('healing_agent', {}).get('system_prompt'):
+            return self.prompts_config['healing_agent']['system_prompt']
+        
+        # Fallback prompt
+        return """You are an autonomous system healing agent for REFRAG operations.
 
 Your mission:
-1. Continuously monitor system health and performance
-2. Identify optimization opportunities through data analysis
-3. Autonomously implement improvements
-4. Measure and report improvement metrics
-5. Learn from user feedback and query patterns
+1. Monitor system health and performance
+2. Identify optimization opportunities
+3. Implement improvements
+4. Measure improvement metrics
+5. Learn from query patterns
 
 Available tools:
-- analyze_heatmap: Analyze query patterns (cold spots, poor quality, slow queries)
-- detect_low_quality: Find documents with low quality scores
-- generate_synthetic_questions: Create test questions for documents
-- reindex_documents: Re-chunk and re-embed with better strategy
-- optimize_chunk_strategy: Test and recommend best chunking approach
-- get_system_status: Check overall system health
-- write_todos: Plan multi-phase healing operations
-- task: Spawn specialized optimization subagents
-
-Healing Strategies:
-1. **reindex_low_quality**: Find docs with quality < 0.5 and re-chunk them
-2. **add_synthetic_questions**: Generate questions for poorly retrieved docs
-3. **adjust_chunk_size**: Optimize chunking strategy for specific docs
-4. **update_embeddings**: Re-embed with better models if available
-
-Workflow for healing cycle:
-1. Use write_todos with a list of steps to plan comprehensive analysis: write_todos(["Analyze heatmap", "Detect low-quality chunks", "Spawn optimization subagents", "Measure improvements"])
-2. Analyze heatmap to identify issues:
-   - Cold spots: Low query frequency
-   - Poor quality: Low user feedback (<3.0)
-   - Slow queries: High response time (>5000ms)
-3. Detect low-quality embeddings (quality < 0.5)
-4. Spawn task agents for parallel optimization:
-   - Reindexing subagent for low-quality docs
-   - Synthetic question generator
-   - Chunk strategy optimizer
-5. Measure improvements (before/after metrics)
-6. Log healing operations with improvement delta
-
-Guidelines:
-- Always measure before/after metrics
-- Document reasoning for each optimization
-- Prioritize high-impact, low-risk changes
-- Test changes on small document sets first
-- Report improvement percentages
+- analyze_heatmap: Find performance issues and cold spots
+- detect_low_quality: Find low-quality documents
+- generate_synthetic_questions: Create test questions
+- reindex_documents: Re-chunk and re-embed documents
+- optimize_chunk_strategy: Test and recommend best chunking
+- get_system_status: Check system health
 
 Be proactive but cautious - measure twice, optimize once.
 """
