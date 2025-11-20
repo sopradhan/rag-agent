@@ -329,7 +329,7 @@ Execute immediately."""
                 return {"success": False, "error": f"File not found: {file_path}"}
             
             # Generate document ID
-            doc_id = metadata.get('id') if metadata else path.stem
+            doc_id = (metadata.get('id') if metadata else None) or path.stem
             
             # Create thought process visualization
             thought = ThoughtVisualizer.create_process(self.name, f"Ingest: {doc_id}")
@@ -364,7 +364,13 @@ file_path: {file_path}
 chunk_size: {current_chunk_size}
 chunk_overlap: {current_chunk_overlap}
 
-Call ingest_document_from_file("{doc_id}", "{file_path}") NOW."""
+IMPORTANT: You MUST call the ingest_document_from_file tool with these EXACT parameters:
+- doc_id: "{doc_id}"
+- file_path: "{file_path}"
+
+Example: ingest_document_from_file(doc_id="{doc_id}", file_path="{file_path}")
+
+Call the tool NOW with these parameters."""
             
             # Invoke agent
             print(f"[{doc_id}] Ingesting...", flush=True)
