@@ -169,11 +169,11 @@ Never bypass RBAC checks. Always report access decisions."""
             if heatmap['poor_quality']:
                 # Increase similarity threshold for high-precision queries if past ones were poor quality
                 current_similarity_threshold = min(0.85, current_similarity_threshold + 0.05)
-                thought.add_metadata("heatmap_analysis", "Detected poor quality queries - increasing threshold")
+                thought.set_metadata("heatmap_analysis", "Detected poor quality queries - increasing threshold")
             if heatmap['cold_spots'] and len(heatmap['cold_spots']) > 0:
                 # Rare queries might need more results
                 current_top_k = min(20, current_top_k + 3)
-                thought.add_metadata("heatmap_analysis", "Detected cold spot query - retrieving more chunks")
+                thought.set_metadata("heatmap_analysis", "Detected cold spot query - retrieving more chunks")
             
             thought.complete_step(step_init)
             thought.set_metadata("top_k", current_top_k)
