@@ -236,7 +236,7 @@ class DatabaseService:
                                   embedding_version: str) -> int:
         """Insert embedding metadata for tracking"""
         return self.insert_and_get_id("""
-            INSERT INTO embedding_metadata
+            INSERT OR REPLACE INTO embedding_metadata
             (document_id, chunk_id, chunk_strategy, chunk_size, overlap,
              embedding_model, embedding_version, quality_score)
             VALUES (?, ?, ?, ?, ?, ?, ?, 0.5)
