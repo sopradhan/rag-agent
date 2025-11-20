@@ -4,6 +4,10 @@ Test IngestionAgent - Document Processing with RBAC Classification
 import sys
 from pathlib import Path
 
+# Enable UTF-8 output on Windows
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.services import LLMService, VectorDBService, DatabaseService
@@ -99,7 +103,7 @@ Contact HR for questions: hr@acmecorp.com
     docs = services['db'].query("SELECT * FROM documents ORDER BY created_at DESC LIMIT 1")
     if docs:
         doc = docs[0]
-        print(f"\n✓ Document stored:")
+        print(f"\n[OK] Document stored:")
         print(f"  ID: {doc['id']}")
         print(f"  Title: {doc.get('title', 'N/A')}")
         print(f"  Source: {doc.get('source', 'N/A')}")
@@ -117,13 +121,13 @@ Contact HR for questions: hr@acmecorp.com
             "SELECT * FROM document_permissions WHERE doc_id = ?",
             (doc['id'],)
         )
-        print(f"\n✓ RBAC Permissions ({len(perms)} roles):")
+        print(f"\n[OK] RBAC Permissions ({len(perms)} roles):")
         for perm in perms[:3]:  # Show first 3
             print(f"  - CDR Code: {perm['cdr_code']}, Sensitivity: {perm.get('sensitivity', 'N/A')}")
         
         # Check vector database
         count = services['vectordb'].count()
-        print(f"\n✓ Vector Database:")
+        print(f"\n[OK] Vector Database:")
         print(f"  Total embeddings: {count}")
         
     else:
@@ -165,18 +169,18 @@ Contact HR for questions: hr@acmecorp.com
     total_chunks = services['db'].query("SELECT COUNT(*) as count FROM embedding_metadata")[0]['count']
     total_ops = services['db'].query("SELECT COUNT(*) as count FROM agent_operations WHERE agent_name LIKE '%Ingestion%'")[0]['count']
     
-    print(f"\n✓ Total Documents: {total_docs}")
-    print(f"✓ Total Chunks: {total_chunks}")
-    print(f"✓ Agent Operations: {total_ops}")
-    print(f"✓ Vector Embeddings: {services['vectordb'].count()}")
+    print(f"\n[OK] Total Documents: {total_docs}")
+    print(f"[OK] Total Chunks: {total_chunks}")
+    print(f"[OK] Agent Operations: {total_ops}")
+    print(f"[OK] Vector Embeddings: {services['vectordb'].count()}")
     
     print("\n" + "=" * 80)
     print("INGESTION AGENT TEST COMPLETE")
     print("=" * 80)
     print("\nDeepAgents Features Used:")
-    print("  ✓ write_todos - Task planning and decomposition")
-    print("  ✓ read_file - Reading document content")
-    print("  ✓ Custom tools - chunk, extract_metadata, classify_rbac, etc.")
+    print("  [OK] write_todos - Task planning and decomposition")
+    print("  [OK] read_file - Reading document content")
+    print("  [OK] Custom tools - chunk, extract_metadata, classify_rbac, etc.")
     print("\nNext: Run test_retrieval_agent.py")
     print("=" * 80)
 

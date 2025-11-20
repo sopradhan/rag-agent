@@ -26,8 +26,8 @@ def test_parameter_manager():
     print("\n[TEST 1] Get default parameters")
     rag_params = param_manager.get_rag_params()
     llm_params = param_manager.get_llm_params()
-    print(f"  ✓ RAG Parameters: {rag_params}")
-    print(f"  ✓ LLM Parameters: {llm_params}")
+    print(f"  [OK] RAG Parameters: {rag_params}")
+    print(f"  [OK] LLM Parameters: {llm_params}")
     
     # Test 2: Apply profile
     print("\n[TEST 2] Apply profiles")
@@ -35,7 +35,7 @@ def test_parameter_manager():
     for profile in profiles:
         param_manager.apply_profile(profile)
         rag_params = param_manager.get_rag_params()
-        print(f"  ✓ {profile:20s} - top_k={rag_params['top_k']:2d}, "
+        print(f"  [OK] {profile:20s} - top_k={rag_params['top_k']:2d}, "
               f"similarity_threshold={rag_params['similarity_threshold']:.2f}")
     
     # Reset to balanced
@@ -47,8 +47,8 @@ def test_parameter_manager():
     param_manager.set_llm_param('temperature', 0.5)
     rag_params = param_manager.get_rag_params()
     llm_params = param_manager.get_llm_params()
-    print(f"  ✓ Set top_k=15, new value: {rag_params['top_k']}")
-    print(f"  ✓ Set temperature=0.5, new value: {llm_params['temperature']}")
+    print(f"  [OK] Set top_k=15, new value: {rag_params['top_k']}")
+    print(f"  [OK] Set temperature=0.5, new value: {llm_params['temperature']}")
     
     # Reset
     param_manager.apply_profile('balanced')
@@ -113,7 +113,7 @@ def test_parameter_history():
     
     # Check history
     history = param_manager.get_optimization_history()
-    print(f"\n✓ History entries recorded: {len(history)}")
+    print(f"\n[OK] History entries recorded: {len(history)}")
     for i, entry in enumerate(history[-3:], 1):
         print(f"  {i}. Profile/Parameter change tracked")
 
@@ -134,10 +134,10 @@ def test_parameter_recommendations():
     })
     
     if recommendations:
-        print(f"✓ Recommended profile: {recommendations.get('recommended_profile')}")
-        print(f"✓ Reasoning: {recommendations.get('reasoning')}")
+        print(f"[OK] Recommended profile: {recommendations.get('recommended_profile')}")
+        print(f"[OK] Reasoning: {recommendations.get('reasoning')}")
     else:
-        print("✓ No recommendations (current config satisfies constraints)")
+        print("[OK] No recommendations (current config satisfies constraints)")
     
     print("\n[TEST] Recommendation with min_accuracy=0.9")
     recommendations = param_manager.recommend_parameters({
@@ -145,8 +145,8 @@ def test_parameter_recommendations():
     })
     
     if recommendations:
-        print(f"✓ Recommended profile: {recommendations.get('recommended_profile')}")
-        print(f"✓ Reasoning: {recommendations.get('reasoning')}")
+        print(f"[OK] Recommended profile: {recommendations.get('recommended_profile')}")
+        print(f"[OK] Reasoning: {recommendations.get('reasoning')}")
 
 
 def test_export_import():
@@ -166,7 +166,7 @@ def test_export_import():
     # Export
     print("\n[Exporting parameters...]")
     config = param_manager.export_config()
-    print(f"✓ Exported config: {json.dumps(config, indent=2)}")
+    print(f"[OK] Exported config: {json.dumps(config, indent=2)}")
     
     # Create new manager and import
     print("\n[Importing into new manager...]")
@@ -177,8 +177,8 @@ def test_export_import():
     imported_rag = param_manager2.get_rag_params()
     imported_llm = param_manager2.get_llm_params()
     
-    print(f"✓ Imported RAG params: top_k={imported_rag['top_k']}")
-    print(f"✓ Imported LLM params: temperature={imported_llm['temperature']}")
+    print(f"[OK] Imported RAG params: top_k={imported_rag['top_k']}")
+    print(f"[OK] Imported LLM params: temperature={imported_llm['temperature']}")
     
     # Verify they match
     original_rag = param_manager.get_rag_params()
@@ -186,7 +186,7 @@ def test_export_import():
     
     if (imported_rag['top_k'] == original_rag['top_k'] and
         imported_llm['temperature'] == original_llm['temperature']):
-        print("\n✓ Import/Export verification: PASSED")
+        print("\n[OK] Import/Export verification: PASSED")
     else:
         print("\n✗ Import/Export verification: FAILED")
 
@@ -204,7 +204,7 @@ def main():
         test_export_import()
         
         print("\n" + "="*60)
-        print("✓ ALL TESTS COMPLETED SUCCESSFULLY")
+        print("[OK] ALL TESTS COMPLETED SUCCESSFULLY")
         print("="*60)
         
     except Exception as e:

@@ -4,6 +4,10 @@ Test RetrievalAgent - Query Processing with RBAC Enforcement
 import sys
 from pathlib import Path
 
+# Enable UTF-8 output on Windows
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.services import LLMService, VectorDBService, DatabaseService

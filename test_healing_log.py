@@ -19,11 +19,11 @@ try:
         after_metrics={'metric1': 0.7},
         improvement_delta=0.2
     )
-    print(f"✓ Insert successful, ID: {result}")
+    print(f"[OK] Insert successful, ID: {result}")
     
     # Check if it's actually there
     rows = db.query("SELECT * FROM healing_operations WHERE strategy = ?", ('test_strategy',))
-    print(f"✓ Query returned {len(rows)} rows")
+    print(f"[OK] Query returned {len(rows)} rows")
     if rows:
         print(f"  Row data: {dict(rows[0])}")
 except Exception as e:

@@ -73,7 +73,7 @@ class ThoughtProcess:
         """Simple ASCII visualization"""
         lines = []
         lines.append("\n" + "="*70)
-        lines.append(f"🧠 {self.agent_name} | {self.operation}")
+        lines.append(f"[AGENT] {self.agent_name} | {self.operation}")
         lines.append("="*70)
         
         for i, step in enumerate(self.steps):
@@ -86,9 +86,9 @@ class ThoughtProcess:
             if step.details and step.status != 'pending':
                 for key, value in step.details.items():
                     if isinstance(value, (dict, list)):
-                        lines.append(f"{indent}   • {key}: {json.dumps(value, indent=2)[:100]}...")
+                        lines.append(f"{indent}   * {key}: {json.dumps(value, indent=2)[:100]}...")
                     else:
-                        lines.append(f"{indent}   • {key}: {value}")
+                        lines.append(f"{indent}   * {key}: {value}")
             
             if step.duration_ms:
                 lines.append(f"{indent}   ⏱ {step.duration_ms}ms")
@@ -96,7 +96,7 @@ class ThoughtProcess:
         if self.metadata:
             lines.append("\n📊 Metadata:")
             for key, value in self.metadata.items():
-                lines.append(f"  • {key}: {value}")
+                lines.append(f"  * {key}: {value}")
         
         lines.append("\n" + "="*70 + "\n")
         return "\n".join(lines)
@@ -104,11 +104,11 @@ class ThoughtProcess:
     def visualize_detailed(self) -> str:
         """Detailed visualization with all information"""
         lines = []
-        lines.append("\n" + "█"*70)
-        lines.append(f"█ 🧠 AGENT THOUGHT PROCESS: {self.agent_name}")
-        lines.append(f"█ 📋 Operation: {self.operation}")
-        lines.append(f"█ ⏰ Started: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append("█"*70)
+        lines.append("\n" + "#"*70)
+        lines.append(f"# AGENT THOUGHT PROCESS: {self.agent_name}")
+        lines.append(f"# Operation: {self.operation}")
+        lines.append(f"# Started: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        lines.append("#"*70)
         
         for step in self.steps:
             lines.append(self._format_detailed_step(step))
@@ -124,7 +124,7 @@ class ThoughtProcess:
         completed = len([s for s in self.steps if s.status == 'completed'])
         total = len(self.steps)
         lines.append("\n" + "─"*70)
-        lines.append(f"✅ Progress: {completed}/{total} steps completed")
+        lines.append(f"[DONE] Progress: {completed}/{total} steps completed")
         lines.append("─"*70 + "\n")
         
         return "\n".join(lines)
@@ -132,9 +132,9 @@ class ThoughtProcess:
     def visualize_flowchart(self) -> str:
         """ASCII flowchart visualization"""
         lines = []
-        lines.append("\n" + "╔" + "═"*68 + "╗")
-        lines.append(f"║ 🧠 {self.agent_name:30s} {self.operation:35s} ║")
-        lines.append("╚" + "═"*68 + "╝")
+        lines.append("\n" + "+"+ "-"*68 + "+")
+        lines.append(f"| AGENT: {self.agent_name:30s} OP: {self.operation:23s} |")
+        lines.append("+" + "-"*68 + "+")
         
         for i, step in enumerate(self.steps):
             is_last = i == len(self.steps) - 1
@@ -155,8 +155,8 @@ class ThoughtProcess:
     def visualize_tree(self) -> str:
         """Tree-style visualization"""
         lines = []
-        lines.append("\n" + "🧠 " + self.agent_name)
-        lines.append("└─ " + self.operation)
+        lines.append("\n[AGENT] " + self.agent_name)
+        lines.append("+-- " + self.operation)
         
         for i, step in enumerate(self.steps):
             is_last = i == len(self.steps) - 1
@@ -168,7 +168,7 @@ class ThoughtProcess:
             if step.details:
                 for key, value in step.details.items():
                     detail_prefix = "        └─ " if is_last else "       ├─ "
-                    lines.append(f"{detail_prefix}• {key}: {self._format_value(value, 40)}")
+                    lines.append(f"{detail_prefix}* {key}: {self._format_value(value, 40)}")
         
         lines.append("\n")
         return "\n".join(lines)
@@ -178,7 +178,7 @@ class ThoughtProcess:
         # Header
         print("\n" + "="*70)
         time.sleep(delay * 0.5)
-        print(f"🧠 {self.agent_name} | {self.operation}")
+        print(f"[AGENT] {self.agent_name} | {self.operation}")
         time.sleep(delay * 0.3)
         print("="*70)
         time.sleep(delay)
@@ -199,9 +199,9 @@ class ThoughtProcess:
             if step.details and step.status != 'pending':
                 for key, value in step.details.items():
                     if isinstance(value, (dict, list)):
-                        print(f"     • {key}: {json.dumps(value, indent=2)[:60]}...")
+                        print(f"     * {key}: {json.dumps(value, indent=2)[:60]}...")
                     else:
-                        print(f"     • {key}: {value}")
+                        print(f"     * {key}: {value}")
                     time.sleep(delay * 0.15)
             
             # Print duration
@@ -214,7 +214,7 @@ class ThoughtProcess:
             print("\n📊 Metadata:")
             time.sleep(delay * 0.3)
             for key, value in self.metadata.items():
-                print(f"  • {key}: {value}")
+                print(f"  * {key}: {value}")
                 time.sleep(delay * 0.15)
         
         print("\n" + "="*70 + "\n")
@@ -223,15 +223,15 @@ class ThoughtProcess:
     def animate_detailed(self, delay: float = 0.5):
         """Animated detailed visualization"""
         # Header with blocks
-        print("\n" + "█"*70)
+        print("\n" + "#"*70)
         time.sleep(delay * 0.5)
-        print(f"█ 🧠 AGENT THOUGHT PROCESS: {self.agent_name}")
+        print(f"# AGENT THOUGHT PROCESS: {self.agent_name}")
         time.sleep(delay * 0.3)
-        print(f"█ 📋 Operation: {self.operation}")
+        print(f"# Operation: {self.operation}")
         time.sleep(delay * 0.3)
-        print(f"█ ⏰ Started: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"# Started: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         time.sleep(delay * 0.3)
-        print("█"*70)
+        print("#"*70)
         time.sleep(delay)
         
         # Steps
@@ -252,9 +252,9 @@ class ThoughtProcess:
                 print("Status: 🔄 ACTIVE (In Progress)")
             elif step.status == 'completed':
                 duration_str = f"({step.duration_ms}ms)" if step.duration_ms else ""
-                print(f"Status: ✅ COMPLETED {duration_str}")
+                print(f"Status: [DONE] COMPLETED {duration_str}")
             elif step.status == 'error':
-                print("Status: ❌ ERROR")
+                print("Status: [ERROR] ERROR")
             else:
                 print("Status: ⏳ PENDING")
             
@@ -265,7 +265,7 @@ class ThoughtProcess:
                 print("\nDetails:")
                 time.sleep(delay * 0.15)
                 for key, value in step.details.items():
-                    print(f"  • {key}: {self._format_value(value)}")
+                    print(f"  * {key}: {self._format_value(value)}")
                     time.sleep(delay * 0.1)
         
         # Metadata
@@ -283,7 +283,7 @@ class ThoughtProcess:
         total = len(self.steps)
         print("\n" + "─"*70)
         time.sleep(delay * 0.2)
-        print(f"✅ Progress: {completed}/{total} steps completed")
+        print(f"[DONE] Progress: {completed}/{total} steps completed")
         print("─"*70 + "\n")
         time.sleep(delay * 0.3)
     
@@ -291,7 +291,7 @@ class ThoughtProcess:
         """Show animated spinner while processing"""
         spinners = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         
-        print(f"\n🧠 {self.agent_name} is thinking...")
+        print(f"\n[BRAIN] {self.agent_name} is thinking...")
         sys.stdout.flush()
         
         # Show spinner for each step
@@ -302,12 +302,12 @@ class ThoughtProcess:
                 time.sleep(delay * 0.25)
             
             # Mark as complete
-            print(f"\r✅ {step.title}")
+            print(f"\r[DONE] {step.title}")
             time.sleep(delay * 0.2)
     
     def animate_progress_bar(self, delay: float = 0.5):
         """Show animated progress bar"""
-        print(f"\n🧠 {self.agent_name} | {self.operation}")
+        print(f"\n[BRAIN] {self.agent_name} | {self.operation}")
         print("Processing steps...\n")
         time.sleep(delay * 0.3)
         
@@ -331,14 +331,14 @@ class ThoughtProcess:
         # Final bar
         bar = "█" * bar_length
         print(f"[{bar}] 100%")
-        print(f"  ✅ All steps completed!")
+        print(f"  [DONE] All steps completed!")
         print("\n")
         time.sleep(delay * 0.3)
     
     def animate_cascading(self, delay: float = 0.5):
         """Cascade animation - steps appear sequentially"""
         print("\n" + "="*70)
-        print(f"🧠 {self.agent_name}")
+        print(f"[BRAIN] {self.agent_name}")
         print("="*70)
         time.sleep(delay * 0.5)
         
@@ -364,7 +364,7 @@ class ThoughtProcess:
         """Matrix-style animation with character fade-in"""
         chars = "░▒▓█"
         
-        print(f"\n🧠 {self.agent_name} | {self.operation}")
+        print(f"\n[BRAIN] {self.agent_name} | {self.operation}")
         print()
         
         for step in self.steps:
@@ -385,10 +385,10 @@ class ThoughtProcess:
     def _get_status_icon(status: str) -> str:
         """Get icon for status"""
         icons = {
-            'completed': '✅',
+            'completed': '[DONE]',
             'active': '🔄',
             'pending': '⏳',
-            'error': '❌'
+            'error': '[ERROR]'
         }
         return icons.get(status, '❓')
     
@@ -406,16 +406,16 @@ class ThoughtProcess:
         if step.status == 'active':
             lines.append("Status: 🔄 ACTIVE (In Progress)")
         elif step.status == 'completed':
-            lines.append(f"Status: ✅ COMPLETED ({step.duration_ms}ms)" if step.duration_ms else "Status: ✅ COMPLETED")
+            lines.append(f"Status: [DONE] COMPLETED ({step.duration_ms}ms)" if step.duration_ms else "Status: [DONE] COMPLETED")
         elif step.status == 'error':
-            lines.append("Status: ❌ ERROR")
+            lines.append("Status: [ERROR] ERROR")
         else:
             lines.append("Status: ⏳ PENDING")
         
         if step.details:
             lines.append("\nDetails:")
             for key, value in step.details.items():
-                lines.append(f"  • {key}: {ThoughtProcess._format_value(value)}")
+                lines.append(f"  * {key}: {ThoughtProcess._format_value(value)}")
         
         return "\n".join(lines)
     

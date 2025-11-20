@@ -255,5 +255,5 @@ class PromptBuilder:
         """
         lines = [f"=== {title} ==="]
         for rule in rules:
-            lines.append(f"✓ {rule}")
+            lines.append(f"[OK] {rule}")
         return "\n".join(lines)

@@ -101,7 +101,7 @@ class IngestionAgent:
                     }
                     for i, chunk in enumerate(chunks)
                 ]
-                print(f"  ✓ {len(chunks_data)} chunks", flush=True)
+                print(f"  [OK] {len(chunks_data)} chunks", flush=True)
                 
                 print(f"[2/5] Metadata...", flush=True)
                 # Step 2: Extract metadata
@@ -120,7 +120,7 @@ Respond ONLY with JSON:
 """
                 metadata = llm_service.generate_json(metadata_prompt)
                 title = metadata.get('title', 'Untitled')
-                print(f"  ✓ {title}", flush=True)
+                print(f"  [OK] {title}", flush=True)
                 
                 print(f"[3/5] RBAC...", flush=True)
                 # Step 3: Classify RBAC
@@ -146,7 +146,7 @@ Respond ONLY with JSON:
                     if mapping.get('department_id') in default_depts and mapping.get('role_id') >= min_role_id:
                         required_codes.append(cdr_code)
                 
-                print(f"  ✓ {subject} / {sensitivity} ({len(required_codes)} roles)", flush=True)
+                print(f"  [OK] {subject} / {sensitivity} ({len(required_codes)} roles)", flush=True)
                 
                 print(f"[4/5] Embeddings...", flush=True)
                 # Step 4: Generate embeddings
@@ -154,7 +154,7 @@ Respond ONLY with JSON:
                 embeddings = llm_service.generate_embeddings(texts)
                 for i, chunk in enumerate(chunks_data):
                     chunk['embedding'] = embeddings[i]
-                print(f"  ✓ {len(embeddings)} embeddings", flush=True)
+                print(f"  [OK] {len(embeddings)} embeddings", flush=True)
                 
                 print(f"\n[5/5] Storing...", flush=True)
                 # Step 5: Store in database
@@ -165,8 +165,8 @@ Respond ONLY with JSON:
                        VALUES (?, ?, ?, ?)""",
                     (doc_id, title, f"/data/{doc_id}", metadata.get('doc_type', 'unknown'))
                 )
-                print(f"  ✓ Document record stored", flush=True)
-                print(f"  ✓ Document record stored", flush=True)
+                print(f"  [OK] Document record stored", flush=True)
+                print(f"  [OK] Document record stored", flush=True)
                 
                 # Store chunks metadata in SQLite (NO embedding vectors, only metadata)
                 for i, chunk in enumerate(chunks_data):
@@ -180,7 +180,7 @@ Respond ONLY with JSON:
                         embedding_model='sentence-transformers/all-MiniLM-L6-v2',
                         embedding_version='v1'
                     )
-                print(f"  ✓ {len(chunks_data)} chunk metadata records stored (embeddings in ChromaDB only)", flush=True)
+                print(f"  [OK] {len(chunks_data)} chunk metadata records stored (embeddings in ChromaDB only)", flush=True)
                 
                 # Store embeddings in ChromaDB with comprehensive metadata
                 ids = [f"{doc_id}_{c['chunk_id']}" for c in chunks_data]
@@ -205,17 +205,17 @@ Respond ONLY with JSON:
                 documents = [c['text'] for c in chunks_data]
                 
                 # Add documents to ChromaDB with embeddings
-                print(f"  ✓ Adding {len(ids)} embeddings to ChromaDB", flush=True)
+                print(f"  [OK] Adding {len(ids)} embeddings to ChromaDB", flush=True)
                 vectordb_service.add_documents(
                     ids=ids,
                     embeddings=embeddings_list,
                     metadatas=metadatas,
                     documents=documents
                 )
-                print(f"  ✓ {len(ids)} embeddings stored with metadata", flush=True)
+                print(f"  [OK] {len(ids)} embeddings stored with metadata", flush=True)
                 
                 # Store RBAC permissions in SQLite
-                print(f"  ✓ Setting {len(required_codes)} RBAC permissions", flush=True)
+                print(f"  [OK] Setting {len(required_codes)} RBAC permissions", flush=True)
                 for cdr_code in required_codes:
                     db_service.assign_document_permission(
                         doc_id=doc_pk or doc_id,
@@ -224,7 +224,7 @@ Respond ONLY with JSON:
                         subject=subject,
                         assigned_by='ingestion_agent'
                     )
-                print(f"  ✓ RBAC permissions saved", flush=True)
+                print(f"  [OK] RBAC permissions saved", flush=True)
                 
                 # Store extracted metadata in SQLite for agent/LLM metadata tracking (key-value format)
                 try:
@@ -247,11 +247,11 @@ Respond ONLY with JSON:
                                VALUES (?, ?, ?)""",
                             (document_id, key, str(value))
                         )
-                    print(f"  ✓ Document metadata + LLM metadata stored", flush=True)
+                    print(f"  [OK] Document metadata + LLM metadata stored", flush=True)
                 except Exception as e:
                     print(f"  ⚠ Document metadata table issue: {str(e)}", flush=True)
                 
-                print(f"\n  ✓✓✓ INGESTION COMPLETE ✓✓✓", flush=True)
+                print(f"\n  [OK][OK][OK] INGESTION COMPLETE [OK][OK][OK]", flush=True)
                 
                 return json.dumps({
                     "success": True,

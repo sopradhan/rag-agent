@@ -13,10 +13,10 @@ def run_test(script_name, description):
     result = subprocess.run([sys.executable, script_name], capture_output=False)
     
     if result.returncode == 0:
-        print(f"\n✓ {description} - PASSED")
+        print(f"\n[PASS] {description} - PASSED")
         return True
     else:
-        print(f"\n✗ {description} - FAILED")
+        print(f"\n[FAIL] {description} - FAILED")
         return False
 
 def main():
@@ -24,10 +24,10 @@ def main():
     print("REFRAG SYSTEM - COMPLETE TEST SUITE")
     print("=" * 100)
     print("\nTesting all agents with DeepAgents features:")
-    print("  • write_todos (planning)")
-    print("  • task (subagent spawning)")
-    print("  • File system tools (context management)")
-    print("  • Custom agent tools")
+    print("  * write_todos (planning)")
+    print("  * task (subagent spawning)")
+    print("  * File system tools (context management)")
+    print("  * Custom agent tools")
     print("\n" + "=" * 100)
     
     tests = [
@@ -43,7 +43,7 @@ def main():
         results.append((desc, passed))
         
         if not passed:
-            print(f"\n⚠️  Test failed. Continue? (y/n): ", end="")
+            print(f"\n[WARNING] Test failed. Continue? (y/n): ", end="")
             choice = input().lower()
             if choice != 'y':
                 break
@@ -54,7 +54,7 @@ def main():
     print("=" * 100)
     
     for desc, passed in results:
-        status = "✓ PASSED" if passed else "✗ FAILED"
+        status = "[PASS]" if passed else "[FAIL]"
         print(f"{status} - {desc}")
     
     total = len(results)
@@ -63,9 +63,9 @@ def main():
     print(f"\nTotal: {passed_count}/{total} tests passed")
     
     if passed_count == total:
-        print("\n🎉 ALL TESTS PASSED! REFRAG system is fully operational.")
+        print("\n*** ALL TESTS PASSED! REFRAG system is fully operational. ***")
     else:
-        print(f"\n⚠️  {total - passed_count} test(s) failed.")
+        print(f"\n[WARNING] {total - passed_count} test(s) failed.")
     
     print("=" * 100)
 

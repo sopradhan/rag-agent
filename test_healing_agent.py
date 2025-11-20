@@ -4,6 +4,10 @@ Test HealingAgent - REFRAG Self-Healing and Optimization
 import sys
 from pathlib import Path
 
+# Enable UTF-8 output on Windows
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.services import LLMService, VectorDBService, DatabaseService
@@ -53,7 +57,7 @@ def test_healing_agent():
     doc_count = services['db'].query("SELECT COUNT(*) as count FROM documents")[0]['count']
     query_count = services['db'].query("SELECT COUNT(*) as count FROM query_history")[0]['count']
     
-    print(f"\n✓ System state:")
+    print(f"\n[OK] System state:")
     print(f"  Documents: {doc_count}")
     print(f"  Queries: {query_count}")
     
@@ -95,7 +99,7 @@ def test_healing_agent():
         if recommendations:
             print(f"\n  Recommendations:")
             for rec in recommendations[:3]:
-                print(f"    • {rec}")
+                print(f"    * {rec}")
     else:
         print(f"  Error: {result.get('error', 'Unknown')}")
     
@@ -121,13 +125,13 @@ def test_healing_agent():
         WHERE quality_score < 0.7
     """)[0]['count']
     
-    print(f"\n✓ Found {low_quality} low quality chunks (score < 0.7)")
+    print(f"\n[OK] Found {low_quality} low quality chunks (score < 0.7)")
     
     if low_quality > 0:
         print("\nRecommendations:")
-        print("  • Reindex these chunks with better chunking strategy")
-        print("  • Generate synthetic questions to test understanding")
-        print("  • Consider larger or smaller chunk sizes")
+        print("  * Reindex these chunks with better chunking strategy")
+        print("  * Generate synthetic questions to test understanding")
+        print("  * Consider larger or smaller chunk sizes")
     
     # Test 3: Generate Synthetic Questions
     print("\n" + "=" * 80)
@@ -162,7 +166,7 @@ def test_healing_agent():
                 VALUES (?, ?, ?)
             """, (str(doc_id), question, expected))
         
-        print("\n✓ Stored 2 synthetic questions for testing")
+        print("\n[OK] Stored 2 synthetic questions for testing")
     
     # Test 4: Run Healing Cycle
     print("\n" + "=" * 80)
@@ -219,9 +223,9 @@ def test_healing_agent():
     
     print("\n[Testing different chunking strategies...]")
     print("\nStrategies to test:")
-    print("  • recursive (current)")
-    print("  • character")
-    print("  • token")
+    print("  * recursive (current)")
+    print("  * character")
+    print("  * token")
     print("\nEach strategy will be evaluated on:")
     print("  - Chunk coherence")
     print("  - Information density")
@@ -243,7 +247,7 @@ def test_healing_agent():
     """)
     
     if healing_ops:
-        print(f"\n✓ Recent Healing Operations ({len(healing_ops)}):")
+        print(f"\n[OK] Recent Healing Operations ({len(healing_ops)}):")
         for op in healing_ops:
             print(f"  - Strategy: {op['strategy']}")
             print(f"    Reason: {op.get('reason', 'N/A')[:50]}...")
@@ -251,28 +255,28 @@ def test_healing_agent():
             print(f"    Date: {op['timestamp']}")
             print()
     else:
-        print("\n✓ No healing operations yet (run healing cycle above)")
+        print("\n[OK] No healing operations yet (run healing cycle above)")
     
     # Synthetic queries
     synthetic = services['db'].query("""
         SELECT COUNT(*) as count FROM synthetic_queries
     """)[0]['count']
     
-    print(f"✓ Synthetic Questions: {synthetic}")
+    print(f"[OK] Synthetic Questions: {synthetic}")
     
     print("\n" + "=" * 80)
     print("HEALING AGENT TEST COMPLETE")
     print("=" * 80)
     print("\nDeepAgents Features Used:")
-    print("  ✓ write_todos - Healing strategy planning")
-    print("  ✓ read_file/write_file - Analysis reports")
-    print("  ✓ Custom tools - analyze_heatmap, detect_low_quality, reindex")
+    print("  [OK] write_todos - Healing strategy planning")
+    print("  [OK] read_file/write_file - Analysis reports")
+    print("  [OK] Custom tools - analyze_heatmap, detect_low_quality, reindex")
     print("\nREFRAG Capabilities Demonstrated:")
-    print("  ✓ Query heatmap analysis")
-    print("  ✓ Quality score tracking")
-    print("  ✓ Synthetic question generation")
-    print("  ✓ Automatic reindexing")
-    print("  ✓ Improvement measurement")
+    print("  [OK] Query heatmap analysis")
+    print("  [OK] Quality score tracking")
+    print("  [OK] Synthetic question generation")
+    print("  [OK] Automatic reindexing")
+    print("  [OK] Improvement measurement")
     print("\nNext: Run test_orchestrator.py")
     print("=" * 80)
 

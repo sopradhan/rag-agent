@@ -28,7 +28,7 @@ def test_database_logging():
         spawn_id = db.log_agent_spawn('MasterOrchestrator', 'RetrievalAgent', 'Test query processing')
         spawns = db.query("SELECT * FROM agent_spawns WHERE spawn_id = ?", (spawn_id,))
         if spawns:
-            print(f"✓ Agent spawn logged: {dict(spawns[0])}")
+            print(f"[OK] Agent spawn logged: {dict(spawns[0])}")
         else:
             print("✗ Spawn ID not found")
     except Exception as e:
@@ -40,7 +40,7 @@ def test_database_logging():
         token_id = db.log_token_usage('RetrievalAgent', 1, 'ollama', 'qwen2.5:0.5b', 100, 50, 0.0)
         tokens = db.query("SELECT * FROM llm_token_usage WHERE agent_name = 'RetrievalAgent' LIMIT 1")
         if tokens:
-            print(f"✓ Token usage logged: agent={tokens[0]['agent_name']}, prompt={tokens[0]['prompt_tokens']}, completion={tokens[0]['completion_tokens']}")
+            print(f"[OK] Token usage logged: agent={tokens[0]['agent_name']}, prompt={tokens[0]['prompt_tokens']}, completion={tokens[0]['completion_tokens']}")
         else:
             print("✗ Token record not found")
     except Exception as e:
@@ -52,7 +52,7 @@ def test_database_logging():
         mem_id = db.store_agent_memory('TestAgent', 'query_123', json.dumps({"test": "data"}), 'query_result')
         memory = db.query("SELECT * FROM agent_memory WHERE agent_name = 'TestAgent' LIMIT 1")
         if memory:
-            print(f"✓ Memory stored: agent={memory[0]['agent_name']}, key={memory[0]['memory_key']}")
+            print(f"[OK] Memory stored: agent={memory[0]['agent_name']}, key={memory[0]['memory_key']}")
         else:
             print("✗ Memory record not found")
     except Exception as e:
@@ -62,7 +62,7 @@ def test_database_logging():
     print("\n[TEST 4] Query Heatmap Analysis")
     try:
         heatmap = db.get_heatmap_analysis()
-        print(f"✓ Heatmap analysis retrieved:")
+        print(f"[OK] Heatmap analysis retrieved:")
         print(f"  - Cold spots: {len(heatmap['cold_spots'])} queries with low frequency")
         print(f"  - Poor quality: {len(heatmap['poor_quality'])} queries with low feedback")
         print(f"  - Slow queries: {len(heatmap['slow_queries'])} queries with high latency")
@@ -85,7 +85,7 @@ def test_database_logging():
         try:
             result = db.query(f"SELECT COUNT(*) as cnt FROM {table}")
             count = result[0]['cnt'] if result else 0
-            symbol = "✓" if count > 0 else "○"
+            symbol = "[OK]" if count > 0 else "○"
             print(f"{symbol} {label}: {count} rows")
         except Exception as e:
             print(f"✗ {label}: ERROR - {str(e)}")

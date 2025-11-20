@@ -318,7 +318,7 @@ def main():
         test_export_json()
         
         print("\n" + "="*70)
-        print("✓ ALL VISUALIZATION TESTS COMPLETED")
+        print("[OK] ALL VISUALIZATION TESTS COMPLETED")
         print("="*70 + "\n")
         
     except Exception as e:

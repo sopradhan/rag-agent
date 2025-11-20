@@ -4,6 +4,10 @@ Test MasterOrchestrator - Agent Routing and Coordination
 import sys
 from pathlib import Path
 
+# Enable UTF-8 output on Windows
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.services import LLMService, VectorDBService, DatabaseService
@@ -169,18 +173,18 @@ def test_orchestrator():
     print("[Step 1] Ingesting 3 documents...")
     for i in range(1, 4):
         result = orchestrator.ingest_document(str(test_dir / f"doc{i}.txt"))
-        print(f"  ✓ Document {i}: {result.get('status', 'unknown')}")
+        print(f"  [OK] Document {i}: {result.get('status', 'unknown')}")
     
     print("\n[Step 2] Querying across documents...")
     result = orchestrator.query(
         "Summarize all test documents",
         user_id="alice@acmecorp.com"
     )
-    print(f"  ✓ Query: {result.get('status', 'unknown')}")
+    print(f"  [OK] Query: {result.get('status', 'unknown')}")
     
     print("\n[Step 3] Running healing analysis...")
     result = orchestrator.heal()
-    print(f"  ✓ Healing: {result.get('status', 'unknown')}")
+    print(f"  [OK] Healing: {result.get('status', 'unknown')}")
     
     # Verification - Agent Spawns
     print("\n" + "=" * 80)
@@ -195,35 +199,35 @@ def test_orchestrator():
     """)
     
     if spawns:
-        print(f"\n✓ Recent Agent Spawns ({len(spawns)}):")
+        print(f"\n[OK] Recent Agent Spawns ({len(spawns)}):")
         for spawn in spawns:
             print(f"  - {spawn['parent_agent']} → {spawn['child_agent']}")
             print(f"    Reason: {spawn.get('spawn_reason', 'N/A')[:40]}...")
             print(f"    Status: {spawn.get('status', 'unknown')}")
             print()
     else:
-        print("\n✓ No agent spawns recorded yet")
+        print("\n[OK] No agent spawns recorded yet")
     
     print("\n" + "=" * 80)
     print("MASTER ORCHESTRATOR TEST COMPLETE")
     print("=" * 80)
     print("\nDeepAgents Features Used:")
-    print("  ✓ task - Spawning specialized agents")
-    print("  ✓ write_todos - Multi-step workflow planning")
-    print("  ✓ Agent routing - Intelligent task distribution")
+    print("  [OK] task - Spawning specialized agents")
+    print("  [OK] write_todos - Multi-step workflow planning")
+    print("  [OK] Agent routing - Intelligent task distribution")
     print("\nOrchestration Demonstrated:")
-    print("  ✓ IngestionAgent - Document processing")
-    print("  ✓ RetrievalAgent - Query with RBAC")
-    print("  ✓ HealingAgent - System optimization")
-    print("  ✓ Multi-agent workflows - Sequential coordination")
+    print("  [OK] IngestionAgent - Document processing")
+    print("  [OK] RetrievalAgent - Query with RBAC")
+    print("  [OK] HealingAgent - System optimization")
+    print("  [OK] Multi-agent workflows - Sequential coordination")
     print("\n" + "=" * 80)
     print("ALL TESTS COMPLETE!")
     print("=" * 80)
     print("\nRun sequence:")
-    print("  1. ✓ test_ingestion_agent.py")
-    print("  2. ✓ test_retrieval_agent.py")
-    print("  3. ✓ test_healing_agent.py")
-    print("  4. ✓ test_orchestrator.py")
+    print("  1. [OK] test_ingestion_agent.py")
+    print("  2. [OK] test_retrieval_agent.py")
+    print("  3. [OK] test_healing_agent.py")
+    print("  4. [OK] test_orchestrator.py")
     print("\nSystem is fully functional with DeepAgents!")
     print("=" * 80)
 

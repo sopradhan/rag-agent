@@ -217,13 +217,13 @@ def main():
         demo_error_scenario()
         
         print("\n" + "="*70)
-        print("✓ ALL DEMOS COMPLETED")
+        print("[SUCCESS] ALL DEMOS COMPLETED")
         print("="*70)
         print("\nThought visualizations appear in real-time during agent operations.")
         print("Each demo shows how agents are thinking step-by-step!\n")
         
     except Exception as e:
-        print(f"\n✗ DEMO FAILED: {e}")
+        print(f"\n[ERROR] DEMO FAILED: {e}")
         import traceback
         traceback.print_exc()
 
