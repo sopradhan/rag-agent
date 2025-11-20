@@ -159,13 +159,23 @@ Respond ONLY with JSON:
                 print(f"\n[5/5] Storing...", flush=True)
                 # Step 5: Store in database
                 
-                # Store document record (use 'id' as primary key)
-                doc_pk = db_service.insert_and_get_id(
-                    """INSERT INTO documents (id, title, source, doc_type)
-                       VALUES (?, ?, ?, ?)""",
-                    (doc_id, title, f"/data/{doc_id}", metadata.get('doc_type', 'unknown'))
-                )
-                print(f"  [OK] Document record stored", flush=True)
+                # Check if document already exists
+                existing = db_service.query("SELECT id FROM documents WHERE id = ?", (doc_id,))
+                if existing:
+                    # Update existing document instead of inserting
+                    db_service.execute(
+                        """UPDATE documents SET title = ?, source = ?, doc_type = ?, updated_at = CURRENT_TIMESTAMP
+                           WHERE id = ?""",
+                        (title, f"/data/{doc_id}", metadata.get('doc_type', 'unknown'), doc_id)
+                    )
+                    doc_pk = existing[0]['id']
+                else:
+                    # Insert new document
+                    doc_pk = db_service.insert_and_get_id(
+                        """INSERT INTO documents (id, title, source, doc_type)
+                           VALUES (?, ?, ?, ?)""",
+                        (doc_id, title, f"/data/{doc_id}", metadata.get('doc_type', 'unknown'))
+                    )
                 print(f"  [OK] Document record stored", flush=True)
                 
                 # Store chunks metadata in SQLite (NO embedding vectors, only metadata)
